@@ -8,8 +8,8 @@
 // 返すデータの形（デモデータ src/demo.js も同じ形で返す）
 //   users:   [{ id, name, dept, section, team, active }]
 //   splits:  [{ oppId, oppName, accountName, salesDate, ym, ownerId, pct, amount, profit,
-//               oppAmount, oppProfit, stage, level, competition, tags, salesType }]
-//            amount = 売上金額 × ％、profit = 最終利益額 × ％、level = "受注" | "高" | "中" | "低"
+//               stage, level, competition, tags, salesType }]
+//            amount = 商談分割の金額、profit = 商談分割の利益額、level = "受注" | "高" | "中" | "低"
 //   targets: [{ oppId, ownerId, ym, amount, profit }]
 window.AppSF = (function () {
   "use strict";
@@ -27,13 +27,14 @@ window.AppSF = (function () {
     return ym + "-" + pad2(d);
   }
 
-  // 受注確度の値・ステージから「受注・高・中・低」を決める。どれにもあたらないもの（失注など）は null
+  // ステージ・検索用受注確度から「受注・高・中・低」を決める。どれにもあたらないもの（失注など）は null
   function classify(stage, confidenceValue) {
     var o = cfg().opportunity;
     if (stage && (o.wonStages || []).indexOf(stage) >= 0) return "受注";
+    if ((o.openStages || []).length && (o.openStages || []).indexOf(stage) < 0) return null;
     var v = confidenceValue == null ? "" : String(confidenceValue);
     var map = o.confidenceValues || {};
-    var levels = ["受注", "高", "中", "低"];
+    var levels = ["高", "中", "低"];
     for (var i = 0; i < levels.length; i++) {
       if ((map[levels[i]] || []).indexOf(v) >= 0) return levels[i];
     }
@@ -67,36 +68,41 @@ window.AppSF = (function () {
     });
   }
 
+  function idList(ids) {
+    return "(" + ids.map(AppSSO.soqlString).join(", ") + ")";
+  }
+
   function loadSplits(fromYM, toYM, onProgress) {
     var o = cfg().opportunity;
     var t = cfg().target;
     var s = cfg().split;
-    var oppFields = ["Id", "Name", "StageName", "Account.Name", o.salesDate, o.salesAmount, o.finalProfit];
+    var oppFields = ["Id", "Name", "StageName", "Account.Name", o.salesDate];
     [o.confidence, o.competition, o.tags, o.salesType].forEach(function (f) {
       if (f) oppFields.push(f);
     });
-    var select = ["Id", "SplitOwnerId", "SplitPercentage"].concat(
+    var select = ["Id", "SplitOwnerId", "SplitPercentage", s.amount, s.profit].concat(
       oppFields.map(function (f) {
         return "Opportunity." + f;
       })
     );
-    var where = [
-      "Opportunity." + o.salesDate + " >= " + fromYM + "-01",
-      "Opportunity." + o.salesDate + " <= " + lastDay(toYM),
-      "Opportunity.RecordType.Name != " + AppSSO.soqlString(t.recordTypeName),
-    ];
+    var where = ["Opportunity." + o.salesDate + " >= " + fromYM + "-01", "Opportunity." + o.salesDate + " <= " + lastDay(toYM)];
+    if ((o.actualRecordTypeIds || []).length) where.push("Opportunity.RecordTypeId IN " + idList(o.actualRecordTypeIds));
+    else where.push("Opportunity.RecordTypeId != " + AppSSO.soqlString(t.recordTypeId));
     if (s.splitTypeDeveloperName) where.push("SplitType.DeveloperName = " + AppSSO.soqlString(s.splitTypeDeveloperName));
     var soql = "SELECT " + select.join(", ") + " FROM OpportunitySplit WHERE " + where.join(" AND ");
     return AppSSO.query(soql, onProgress).then(function (rows) {
       var out = [];
+      var skipped = {};
       rows.forEach(function (r) {
         var opp = r.Opportunity || {};
-        var level = classify(opp.StageName, o.confidence ? opp[o.confidence] : null);
-        if (!level) return;
-        var pct = num(r.SplitPercentage) / 100;
+        var conf = o.confidence ? opp[o.confidence] : null;
+        var level = classify(opp.StageName, conf);
+        if (!level) {
+          var key = (opp.StageName || "（ステージなし）") + (o.openStages.indexOf(opp.StageName) >= 0 ? "／確度「" + (conf == null ? "空欄" : conf) + "」" : "");
+          skipped[key] = (skipped[key] || 0) + 1;
+          return;
+        }
         var date = String(opp[o.salesDate] || "").slice(0, 10);
-        var oppAmount = num(opp[o.salesAmount]);
-        var oppProfit = num(opp[o.finalProfit]);
         out.push({
           oppId: opp.Id,
           oppName: opp.Name || "",
@@ -104,11 +110,9 @@ window.AppSF = (function () {
           salesDate: date,
           ym: date.slice(0, 7),
           ownerId: r.SplitOwnerId,
-          pct: pct,
-          amount: oppAmount * pct,
-          profit: oppProfit * pct,
-          oppAmount: oppAmount,
-          oppProfit: oppProfit,
+          pct: num(r.SplitPercentage) / 100,
+          amount: num(r[s.amount]),
+          profit: num(r[s.profit]),
           stage: opp.StageName || "",
           level: level,
           competition: (o.competition && opp[o.competition]) || "",
@@ -116,7 +120,7 @@ window.AppSF = (function () {
           salesType: (o.salesType && opp[o.salesType]) || "",
         });
       });
-      return out;
+      return { splits: out, skipped: skipped };
     });
   }
 
@@ -130,8 +134,8 @@ window.AppSF = (function () {
       t.salesAmount +
       ", " +
       t.profitAmount +
-      " FROM Opportunity WHERE RecordType.Name = " +
-      AppSSO.soqlString(t.recordTypeName) +
+      " FROM Opportunity WHERE RecordTypeId = " +
+      AppSSO.soqlString(t.recordTypeId) +
       " AND " +
       o.salesDate +
       " >= " +
@@ -151,7 +155,7 @@ window.AppSF = (function () {
   // 期間（"YYYY-MM"〜"YYYY-MM"）のデータをまとめて読み込む
   function load(fromYM, toYM, onProgress) {
     return Promise.all([loadUsers(), loadSplits(fromYM, toYM, onProgress), loadTargets(fromYM, toYM)]).then(function (r) {
-      return { users: r[0], splits: r[1], targets: r[2] };
+      return { users: r[0], splits: r[1].splits, skipped: r[1].skipped, targets: r[2] };
     });
   }
 

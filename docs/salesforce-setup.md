@@ -21,18 +21,24 @@ CaseShelfの接続アプリケーションをそのまま使えます（OAuth範
 
 **設定 → オブジェクトマネージャ →（商談 / ユーザ）→ 項目とリレーション** で確認します。
 
-| 設定 | 内容 | 確認する場所 |
+| 設定 | 値 | 内容 |
 |---|---|---|
-| `opportunity.salesDate` | 売上日（日付型） | 商談 |
-| `opportunity.salesAmount` | 売上金額 | 商談 |
-| `opportunity.finalProfit` | 最終利益額 | 商談 |
-| `opportunity.confidence` / `confidenceValues` | 受注確度の項目と、その選択肢の値が「受注・高・中・低」のどれにあたるか | 商談 |
-| `opportunity.wonStages` | このステージなら受注確度にかかわらず「受注」とする（不要なら `[]`） | 商談のステージ |
-| `opportunity.competition` / `tags` / `salesType` | コンペ区分・タグ・営業種別（使わないものは `""`） | 商談 |
-| `target.recordTypeName` | 目標のレコードタイプ名（`目標`） | 商談 → レコードタイプ |
-| `target.salesAmount` / `profitAmount` | 目標売上金額・目標利益金額 | 商談 |
-| `split.splitTypeDeveloperName` | 商談分割タイプが複数ある場合、基準にする1つ | 設定 → 商談分割 |
-| `user.department` / `section` / `team` | 部・課・チーム | ユーザ |
+| `split.amount` | `SplitAmount` | 商談分割の金額 |
+| `split.profit` | `SplitProfit__c` | 商談分割の利益額 |
+| `split.splitTypeDeveloperName` | `""` | 分割タイプが複数ある組織で、1つだけを集計したいときに指定（下記） |
+| `opportunity.salesDate` | `EstimatedSaleDate__c` | 売上日 |
+| `opportunity.actualRecordTypeIds` | `0126F000000oIzAQAU` | 実績のレコードタイプ |
+| `opportunity.wonStages` | 受注・制作進行・請求・完了 | 「受注」として扱うステージ |
+| `opportunity.openStages` | タネ・案件詳細入手・着手承認済み・見積提出済み | 検索用受注確度で高・中・低に分けるステージ |
+| `opportunity.confidence` / `confidenceValues` | `PossibilityForSearch__c` | 検索用受注確度と、その値が高・中・低のどれにあたるか（**値は要確認**） |
+| `opportunity.competition` | `Competition_classification__c` | コンペ区分 |
+| `target.recordTypeId` | `0126F000000oIzFQAU` | 目標のレコードタイプ |
+| `target.salesAmount` / `profitAmount` | `SalesGoal__c` / `TargetProfit__c` | 売り上げ目標・目標利益額 |
+| `user.department` / `section` / `team` | `Department__c` / `Division__c` / `Team__c` | 部・課・チーム |
+
+### 分割タイプについて
+Salesforceの商談分割には「分割タイプ」（設定 → 商談分割 で確認）があり、1つの商談に分割タイプごとの分割レコードが作られます。
+分割タイプが1つだけなら設定は不要です。複数ある場合は同じ商談が二重に集計されるため、集計に使う分割タイプのAPI参照名を指定してください。
 
 項目名が間違っている場合、画面に「Salesforceの項目の設定が正しくありません（…）」と表示され、どの項目かがわかります。
 

@@ -213,7 +213,7 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
                   ))}
                 </select>
               </label>
-              <label className="field">
+              {AppConfig.user.section && <label className="field">
                 <span>課</span>
                 <select value={draft.section} onChange={(e) => set({ section: e.target.value, team: "", owner: "" })}>
                   <option value="">すべて</option>
@@ -221,8 +221,8 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
                     <option key={d}>{d}</option>
                   ))}
                 </select>
-              </label>
-              <label className="field">
+              </label>}
+              {AppConfig.user.team && <label className="field">
                 <span>チーム</span>
                 <select value={draft.team} onChange={(e) => set({ team: e.target.value, owner: "" })}>
                   <option value="">すべて</option>
@@ -230,7 +230,7 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
                     <option key={d}>{d}</option>
                   ))}
                 </select>
-              </label>
+              </label>}
               <label className="field">
                 <span>担当者</span>
                 <select value={draft.owner} onChange={(e) => set({ owner: e.target.value })}>
@@ -281,7 +281,7 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
             )}
             <div className="row">
               <label className="field">
-                <span>商談の売上金額（円）</span>
+                <span>分割の金額（円）</span>
                 <div className="inline">
                   <input type="number" min="0" value={draft.amountMin} placeholder="下限" onChange={(e) => set({ amountMin: e.target.value })} />
                   <span className="tilde">〜</span>
@@ -303,8 +303,8 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
                 <select value={draft.groupBy} onChange={(e) => set({ groupBy: e.target.value })}>
                   <option value="">合計のみ</option>
                   <option value="dept">部ごと</option>
-                  <option value="section">課ごと</option>
-                  <option value="team">チームごと</option>
+                  {AppConfig.user.section && <option value="section">課ごと</option>}
+                  {AppConfig.user.team && <option value="team">チームごと</option>}
                   <option value="owner">担当者ごと</option>
                 </select>
               </label>
@@ -476,7 +476,7 @@ function DetailTable({ result, isDemo }) {
   return (
     <div className="table-block">
       <div className="table-title">
-        明細（商談分割）{result.details.length.toLocaleString()}件　個人売上計 {AppAgg.fmtYen(sum[0])} 円 ／ 個人利益計 {AppAgg.fmtYen(sum[1])} 円
+        明細（商談分割）{result.details.length.toLocaleString()}件　金額計 {AppAgg.fmtYen(sum[0])} 円 ／ 利益額計 {AppAgg.fmtYen(sum[1])} 円
         {result.details.length > LIMIT && <span className="muted small">　※画面には先頭{LIMIT}件のみ表示（Excel出力には全件）</span>}
       </div>
       <div className="table-scroll">
@@ -491,9 +491,8 @@ function DetailTable({ result, isDemo }) {
               <th>ステージ</th>
               <th>確度</th>
               <th>分割％</th>
-              <th>個人売上</th>
-              <th>個人利益</th>
-              <th>商談の売上金額</th>
+              <th>分割の金額</th>
+              <th>分割の利益額</th>
             </tr>
           </thead>
           <tbody>
@@ -523,7 +522,6 @@ function DetailTable({ result, isDemo }) {
                   <td>{Math.round(s.pct * 100)}%</td>
                   <td>{AppAgg.fmtYen(s.amount)}</td>
                   <td>{AppAgg.fmtYen(s.profit)}</td>
-                  <td>{AppAgg.fmtYen(s.oppAmount)}</td>
                 </tr>
               );
             })}
@@ -682,6 +680,14 @@ function ReportPage({ mode, profile, onLogout }) {
 
         {error && <div className="alert error">{error}</div>}
         {loading && <div className="alert info">Salesforceからデータを読み込んでいます… {progress}</div>}
+        {data && data.skipped && Object.keys(data.skipped).length > 0 && !loading && (
+          <div className="alert info small">
+            集計の対象外にした商談分割があります（ステージが受注・高・中・低のどれにもあたらないもの）：
+            {Object.keys(data.skipped)
+              .map((k) => k + " " + data.skipped[k] + "件")
+              .join("、")}
+          </div>
+        )}
         {dirty && !loading && <div className="alert warn">検索条件が変更されています。「検索」を押すと結果に反映されます。</div>}
 
         {result && (

@@ -23,9 +23,9 @@ window.AppDemo = (function () {
   var GIVEN = ["健太", "美咲", "大輔", "彩", "翔", "由美", "拓也", "恵", "誠", "裕子", "亮", "真由美", "直樹", "智子", "隆", "愛"];
   var ACCOUNTS = ["サンプル商事", "デモ電機", "テスト自動車", "架空食品", "ダミー化学", "見本建設", "例示ホールディングス", "仮想ミュージアム", "試験放送", "模擬不動産", "検証工業", "参考製薬"];
   var KINDS = ["展示会ブース", "ショールーム改装", "企画展", "周年イベント", "常設展示更新", "プロモーション", "店舗内装", "記念館展示"];
-  var STAGE_WON = ["受注", "制作中", "納品済"];
-  var STAGE_OPEN = ["案件情報入手", "見積提出", "提案中"];
-  var COMPE = ["指名", "コンペ", "見積合わせ"];
+  var STAGE_WON = ["受注", "制作進行", "請求", "完了"];
+  var STAGE_OPEN = ["タネ", "案件詳細入手", "着手承認済み", "見積提出済み"];
+  var COMPE = ["相見積り", "デザインコンペ", "企画コンペ"];
   var TAGS = ["展示会", "ミュージアム", "商業施設", "イベント", "リピート"];
   var SALES_TYPES = ["新規", "既存"];
 
@@ -116,8 +116,8 @@ window.AppDemo = (function () {
               Object.assign({}, opp, {
                 ownerId: p[0].id,
                 pct: p[1],
-                amount: oppAmount * p[1],
-                profit: oppProfit * p[1],
+                amount: Math.round(oppAmount * p[1]),
+                profit: Math.round(oppProfit * p[1]),
               })
             );
           });

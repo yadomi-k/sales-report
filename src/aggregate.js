@@ -93,8 +93,8 @@ window.AppAgg = (function () {
       if (has(f.competitions) && f.competitions.indexOf(s.competition) < 0) return false;
       if (has(f.salesTypes) && f.salesTypes.indexOf(s.salesType) < 0) return false;
       if (has(f.tags) && !s.tags.some(function (t) { return f.tags.indexOf(t) >= 0; })) return false;
-      if (min != null && s.oppAmount < min) return false;
-      if (max != null && s.oppAmount > max) return false;
+      if (min != null && s.amount < min) return false;
+      if (max != null && s.amount > max) return false;
       if (acc && s.accountName.toLowerCase().indexOf(acc) < 0) return false;
       if (kw && s.oppName.toLowerCase().indexOf(kw) < 0) return false;
       return true;
