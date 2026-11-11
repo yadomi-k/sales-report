@@ -239,16 +239,8 @@ window.AppAgg = (function () {
 
   // 全体の表 + 部・課・チーム・担当者ごとの表を作る
   // view: { fromYM, toYM, quarter, half, groupBy: "" | "dept" | "section" | "team" | "owner", sort: "name" | "target" | "won" }
-  // view.targetDate: "sales"（売上日）| "close"（完了予定日）… 目標の月をどちらの日付で判定するか
   function build(data, filters, view) {
     var columns = buildColumns(view.fromYM, view.toYM, view);
-    var useClose = view.targetDate === "close";
-    data = Object.assign({}, data, {
-      targets: data.targets.map(function (t) {
-        var ym = useClose ? t.ymClose || t.ym : t.ymSales || t.ym;
-        return ym === t.ym ? t : Object.assign({}, t, { ym: ym });
-      }),
-    });
     var fd = applyFilters(data, filters);
     var total = { key: "all", label: totalLabel(filters, fd.aff), cells: computeTable(fd.splits, fd.targets, columns) };
     var groups = [];
