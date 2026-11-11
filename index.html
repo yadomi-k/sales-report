@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>売上レポート（試作品）</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React / Babel（CDN、ビルド不要。CaseShelfと同じ構成） -->
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js"></script>
+<!-- グラフ（Chart.js）・Excel出力（ExcelJS） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+<!-- アプリ本体 -->
+<script src="./src/config.js"></script>
+<script src="./src/sso.js"></script>
+<script src="./src/sfdata.js"></script>
+<script src="./src/demo.js"></script>
+<script src="./src/aggregate.js"></script>
+<script src="./src/export.js"></script>
+<script type="text/babel" data-presets="react" src="./src/app.jsx"></script>
+</body>
+</html>

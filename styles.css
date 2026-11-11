@@ -1,0 +1,458 @@
+:root {
+  --navy: #1f3a68;
+  --blue: #1b6fd1;
+  --line: #d5dbe5;
+  --bg: #f4f6fa;
+  --text: #1f2933;
+  --muted: #6b7785;
+  --h-month: #a4c2f4;
+  --h-quarter: #d5a6f5;
+  --h-half: #b4a7d6;
+  --h-total: #5b3f86;
+  --target: #ffff99;
+  --block: #666666;
+  --sales-cell: #dce6f8;
+  --red: #e00000;
+  --cnt: #1e6fd9;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  font-size: 14px;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12px;
+}
+.center {
+  padding: 80px;
+  text-align: center;
+}
+
+/* ボタン */
+.btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: #eef3fb;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.btn.primary:hover:not(:disabled) {
+  background: #155bb0;
+}
+.btn.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.btn.tiny {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.btn.big {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+}
+.btn.link {
+  border: none;
+  background: none;
+  color: var(--blue);
+  text-decoration: underline;
+}
+.btn.ghost {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ログイン */
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.login-card h1 {
+  margin: 0;
+  color: var(--navy);
+}
+
+/* ヘッダー */
+.topbar {
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  font-weight: 700;
+  font-size: 16px;
+}
+.badge {
+  margin-left: 8px;
+  background: #ffcc4d;
+  color: #333;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  vertical-align: middle;
+}
+.who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+main {
+  padding: 12px 16px 40px;
+}
+
+/* パネル */
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.panel-head {
+  background: #e8eef8;
+  border-bottom: 2px solid var(--navy);
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+.panel-head.static {
+  cursor: default;
+}
+.caret {
+  display: inline-block;
+  width: 14px;
+}
+.panel-body {
+  padding: 12px;
+}
+.saved-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px dashed var(--line);
+}
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-end;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.field > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #44505c;
+}
+.field.wide {
+  flex: 1 1 100%;
+}
+.field select,
+.field input:not([type="checkbox"]),
+.name-input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  min-width: 140px;
+  max-width: 100%;
+}
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.inline input {
+  width: 140px;
+  min-width: 0;
+}
+.tilde {
+  padding-bottom: 7px;
+}
+.quick {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-height: 32px;
+  align-items: center;
+}
+.check input {
+  margin: 0;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* お知らせ */
+.alert {
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}
+.alert.error {
+  background: #fdecec;
+  color: #a61b1b;
+  border: 1px solid #f3c2c2;
+}
+.alert.info {
+  background: #eaf2fd;
+  color: #1c4f91;
+  border: 1px solid #c4d9f6;
+}
+.alert.warn {
+  background: #fff7e0;
+  color: #7a5800;
+  border: 1px solid #f1dc9c;
+}
+
+/* 結果のツールバー */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.spacer {
+  flex: 1;
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg button {
+  border: none;
+  background: #fff;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+  border-right: 1px solid var(--line);
+}
+.seg button:last-child {
+  border-right: none;
+}
+.seg button.on {
+  background: var(--navy);
+  color: #fff;
+}
+.chart-box {
+  height: 380px;
+  padding: 0 12px 12px;
+}
+
+/* 表 */
+.table-block {
+  padding: 4px 12px 16px;
+}
+.table-title {
+  font-weight: 700;
+  margin: 6px 0;
+}
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+table.report {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+table.report th,
+table.report td {
+  border-right: 1px solid #c9cfd8;
+  border-bottom: 1px solid #c9cfd8;
+  padding: 4px 8px;
+}
+table.report thead th {
+  text-align: center;
+  font-weight: 600;
+}
+.h-month {
+  background: var(--h-month);
+}
+.h-quarter {
+  background: var(--h-quarter);
+}
+.h-half {
+  background: var(--h-half);
+}
+.h-total {
+  background: var(--h-total);
+  color: #fff;
+}
+th.sub {
+  background: #fff;
+  font-weight: 400;
+  min-width: 96px;
+}
+.sticky {
+  position: sticky;
+  z-index: 2;
+}
+.c1 {
+  left: 0;
+  min-width: 56px;
+}
+.c2 {
+  left: 56px;
+  min-width: 96px;
+}
+th.blank {
+  background: #fff;
+}
+th.block {
+  background: var(--block);
+  color: #fff;
+  text-align: center;
+}
+th.label {
+  background: #f3f3f3;
+  font-weight: 400;
+  text-align: center;
+}
+table.report td {
+  text-align: right;
+  background: #fff;
+}
+table.report td.sales {
+  background: var(--sales-cell);
+}
+table.report th.label.target,
+table.report tr.r-target td {
+  background: var(--target);
+}
+td.red {
+  color: var(--red);
+}
+td.blue {
+  color: var(--cnt);
+}
+tr.block-first td,
+tr.block-first th {
+  border-top: 1px solid #8a939f;
+}
+
+table.detail {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  width: 100%;
+}
+table.detail th {
+  background: var(--h-month);
+  position: sticky;
+  top: 0;
+}
+table.detail th,
+table.detail td {
+  border: 1px solid #d8dde4;
+  padding: 4px 8px;
+}
+table.detail td {
+  text-align: right;
+}
+table.detail td.text {
+  text-align: left;
+}
+.level {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: #222;
+}
+
+@media (max-width: 600px) {
+  main {
+    padding: 8px 8px 32px;
+  }
+  .field select,
+  .field input:not([type="checkbox"]) {
+    min-width: 0;
+    width: 100%;
+  }
+  .row > .field {
+    flex: 1 1 100%;
+  }
+  .chart-box {
+    height: 300px;
+  }
+}
