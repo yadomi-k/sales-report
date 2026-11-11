@@ -626,6 +626,10 @@ function ReportPage({ mode, profile, onLogout }) {
 
   const doExport = (kind) => {
     if (!result) return;
+    if (AppConfig.demoOnly) {
+      setError("この確認用ページではファイルをダウンロードできません。Excel・CSVの出力は、社内に置いた本番の画面で使えます。");
+      return;
+    }
     const cond = conditionSummary(applied, result.aff);
     if (kind === "csv") return AppExport.csv(result, applied, applied.levels, cond);
     setExporting(true);
@@ -642,9 +646,11 @@ function ReportPage({ mode, profile, onLogout }) {
         <div className="brand">売上レポート{isDemo && <span className="badge">デモデータ</span>}</div>
         <div className="who">
           {profile && profile.name && <span>{profile.name}</span>}
-          <button className="btn small ghost" onClick={onLogout}>
-            {isDemo ? "終了" : "ログアウト"}
-          </button>
+          {onLogout && (
+            <button className="btn small ghost" onClick={onLogout}>
+              {isDemo ? "終了" : "ログアウト"}
+            </button>
+          )}
         </div>
       </header>
       <main>
@@ -760,6 +766,7 @@ function App() {
     return () => window.removeEventListener("salesreport-session-expired", onExpire);
   }, []);
 
+  if (AppConfig.demoOnly) return <ReportPage mode="demo" profile={{ name: "デモ利用者" }} onLogout={null} />;
   if (state.phase === "checking") return <div className="center muted">読み込み中…</div>;
   if (state.phase === "out")
     return (
