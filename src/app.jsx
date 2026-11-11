@@ -547,7 +547,7 @@ function TargetCheck({ check }) {
   if (c.error) hint = "目標の件数を確認できませんでした（" + c.error + "）。";
   else if (c.total === 0)
     hint =
-      "目標の商談（レコードタイプ・ステージとも「目標」）が1件も見つかりません。src/config.js の target の設定か、" +
+      "目標の商談（レコードタイプ【個人目標】かつステージ「目標」）が1件も見つかりません。src/config.js の target の設定か、" +
       "目標の商談を参照する権限（共有設定）を確認してください。";
   else if (c.inPeriod > 0)
     hint =
