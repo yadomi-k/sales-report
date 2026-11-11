@@ -132,7 +132,7 @@ window.AppSF = (function () {
     var conds = [];
     if (t.recordTypeId) conds.push("RecordTypeId = " + AppSSO.soqlString(t.recordTypeId));
     if (t.stageName) conds.push("StageName = " + AppSSO.soqlString(t.stageName));
-    var rt = "(" + conds.join(" OR ") + ")";
+    var rt = "(" + conds.join(" AND ") + ")";
     var inPeriod = function (f) {
       return f + " >= " + fromYM + "-01 AND " + f + " <= " + lastDay(toYM);
     };

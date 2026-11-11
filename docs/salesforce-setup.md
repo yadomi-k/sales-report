@@ -38,7 +38,7 @@
 | `opportunity.openStages` | タネ・案件詳細入手・着手承認済み・見積提出済み | 検索用受注確度で高・中・低に分けるステージ |
 | `opportunity.confidence` / `confidenceValues` | `PossibilityForSearch__c` | 検索用受注確度（値：受注・高・中・低） |
 | `opportunity.competition` | `Competition_classification__c` | コンペ区分 |
-| `target.recordTypeId` / `stageName` | `0126F000000oIzFQAU` / `目標` | レコードタイプまたはステージが「目標」の商談を目標として読む（実績からは除く） |
+| `target.recordTypeId` / `stageName` | `0126F000000oIzFQAU` / `目標` | レコードタイプ・ステージとも「目標」の商談を目標として読む（ステージが目標の商談は実績から除く） |
 | `target.salesAmount` / `profitAmount` | `SalesGoal__c` / `TargetProfit__c` | 売り上げ目標・目標利益額 |
 | `user.department` / `section` / `team` | `Department__c` / `Division__c` / `Team__c` | 部・課・チーム |
 
