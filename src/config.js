@@ -7,15 +7,17 @@ window.AppConfig = {
   salesforce: {
     // 会社のSalesforceの「私のドメイン」のURL（CaseShelfと同じ）
     myDomainUrl: "https://shoei.my.salesforce.com",
-    // 接続アプリケーションの「コンシューマ鍵」（CaseShelfと同じ接続アプリケーションを使う）
-    clientId: "3MVG9YDQS5WtC11pWkeuHxMae_.5kSdZ6uN6lnE7Sd.prc3wWdF.mIDSsrzVOCz._nlBnGuYhFXM2fFmr4Arw",
+    // 売上レポート専用の接続アプリケーションの「コンシューマ鍵」（作成後に入れる。手順は docs/salesforce-setup.md）
+    clientId: "",
   },
 
   // 商談分割（OpportunitySplit）：個人の実績は、分割の金額・利益額をそのまま積み上げる
   split: {
     amount: "SplitAmount", // 金額（標準項目）
     profit: "SplitProfit__c", // 利益額
-    // 分割タイプが複数ある組織で、1つだけを集計したいときにその「API参照名」を入れる。1つしかなければ "" のまま
+    // 有効な分割タイプ（「売上金額」）の分割だけを集計する。無効な分割タイプの分割が残っていても二重に数えない
+    onlyActiveSplitType: true,
+    // 特定の分割タイプに絞る場合はその「API参照名」を入れる（通常は "" のままでよい）
     splitTypeDeveloperName: "",
   },
 
@@ -31,8 +33,9 @@ window.AppConfig = {
     wonStages: ["受注", "制作進行", "請求", "完了"],
     openStages: ["タネ", "案件詳細入手", "着手承認済み", "見積提出済み"],
     confidence: "PossibilityForSearch__c", // 検索用受注確度（数式）
-    // 検索用受注確度の値が「高・中・低」のどれにあたるか ※仮（実際の値を確認して書き換える）
+    // 検索用受注確度の値（受注・高・中・低）
     confidenceValues: {
+      受注: ["受注"],
       高: ["高"],
       中: ["中"],
       低: ["低"],

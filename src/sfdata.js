@@ -34,7 +34,7 @@ window.AppSF = (function () {
     if ((o.openStages || []).length && (o.openStages || []).indexOf(stage) < 0) return null;
     var v = confidenceValue == null ? "" : String(confidenceValue);
     var map = o.confidenceValues || {};
-    var levels = ["高", "中", "低"];
+    var levels = ["受注", "高", "中", "低"];
     for (var i = 0; i < levels.length; i++) {
       if ((map[levels[i]] || []).indexOf(v) >= 0) return levels[i];
     }
@@ -88,6 +88,7 @@ window.AppSF = (function () {
     var where = ["Opportunity." + o.salesDate + " >= " + fromYM + "-01", "Opportunity." + o.salesDate + " <= " + lastDay(toYM)];
     if ((o.actualRecordTypeIds || []).length) where.push("Opportunity.RecordTypeId IN " + idList(o.actualRecordTypeIds));
     else where.push("Opportunity.RecordTypeId != " + AppSSO.soqlString(t.recordTypeId));
+    if (s.onlyActiveSplitType) where.push("SplitType.IsActive = true");
     if (s.splitTypeDeveloperName) where.push("SplitType.DeveloperName = " + AppSSO.soqlString(s.splitTypeDeveloperName));
     var soql = "SELECT " + select.join(", ") + " FROM OpportunitySplit WHERE " + where.join(" AND ");
     return AppSSO.query(soql, onProgress).then(function (rows) {
