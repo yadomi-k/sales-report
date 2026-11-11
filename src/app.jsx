@@ -532,6 +532,27 @@ function DetailTable({ result, isDemo }) {
   );
 }
 
+// 目標が0件・0円のときの原因の手がかり
+function TargetCheck({ check }) {
+  const c = check;
+  let hint;
+  if (c.error) hint = "目標の件数を確認できませんでした（" + c.error + "）。";
+  else if (c.total === 0)
+    hint =
+      "レコードタイプ「目標」の商談が1件も見つかりません。目標のレコードタイプID（src/config.js の target.recordTypeId）か、" +
+      "目標の商談を参照する権限（共有設定）を確認してください。";
+  else if (c.inPeriod > 0)
+    hint =
+      "期間内の目標の商談は " + c.inPeriod + "件ありますが、金額が空欄か0です。売り上げ目標の項目名、" +
+      "またはその項目の参照権限（項目レベルセキュリティ）を確認してください。";
+  else
+    hint =
+      "目標の商談は全部で " + c.total + "件ありますが、「" + c.dateField + "」が期間内のものがありません" +
+      "（この項目が空欄の目標：" + c.noDate + "件、完了予定日が期間内の目標：" + c.closeDateInPeriod + "件）。" +
+      "目標の月が別の日付の項目に入っている可能性があります。";
+  return <div className="alert warn">目標が表示されていません。{hint}</div>;
+}
+
 // 出力ファイルに書く検索条件
 function conditionSummary(f, aff) {
   const out = [["期間（売上日）", f.fromYM.replace("-", "/") + " 〜 " + f.toYM.replace("-", "/")]];
@@ -688,6 +709,7 @@ function ReportPage({ mode, profile, onLogout }) {
               .join("、")}
           </div>
         )}
+        {data && data.targetCheck && !loading && <TargetCheck check={data.targetCheck} />}
         {dirty && !loading && <div className="alert warn">検索条件が変更されています。「検索」を押すと結果に反映されます。</div>}
 
         {result && (

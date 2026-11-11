@@ -52,6 +52,8 @@ window.AppConfig = {
     recordTypeId: "0126F000000oIzFQAU",
     salesAmount: "SalesGoal__c", // 売り上げ目標
     profitAmount: "TargetProfit__c", // 目標利益額
+    // 目標の月を判定する日付の項目（通常は実績と同じ売上日）
+    dateField: "EstimatedSaleDate__c",
   },
 
   // ユーザ（User）の所属の項目。分割の所有者（実績）・目標の所有者の所属として使う

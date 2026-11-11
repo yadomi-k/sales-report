@@ -126,37 +126,46 @@ window.AppSF = (function () {
   }
 
   function loadTargets(fromYM, toYM) {
-    var o = cfg().opportunity;
     var t = cfg().target;
+    var dateField = t.dateField || cfg().opportunity.salesDate;
+    var rt = "RecordTypeId = " + AppSSO.soqlString(t.recordTypeId);
+    var inPeriod = function (f) {
+      return f + " >= " + fromYM + "-01 AND " + f + " <= " + lastDay(toYM);
+    };
     var soql =
-      "SELECT Id, OwnerId, " +
-      o.salesDate +
-      ", " +
-      t.salesAmount +
-      ", " +
-      t.profitAmount +
-      " FROM Opportunity WHERE RecordTypeId = " +
-      AppSSO.soqlString(t.recordTypeId) +
-      " AND " +
-      o.salesDate +
-      " >= " +
-      fromYM +
-      "-01 AND " +
-      o.salesDate +
-      " <= " +
-      lastDay(toYM);
+      "SELECT Id, OwnerId, " + dateField + ", " + t.salesAmount + ", " + t.profitAmount +
+      " FROM Opportunity WHERE " + rt + " AND " + inPeriod(dateField);
     return AppSSO.query(soql).then(function (rows) {
-      return rows.map(function (r) {
-        var date = String(r[o.salesDate] || "").slice(0, 10);
+      var targets = rows.map(function (r) {
+        var date = String(r[dateField] || "").slice(0, 10);
         return { oppId: r.Id, ownerId: r.OwnerId, ym: date.slice(0, 7), amount: num(r[t.salesAmount]), profit: num(r[t.profitAmount]) };
       });
+      var sum = targets.reduce(function (a, x) {
+        return a + x.amount;
+      }, 0);
+      if (targets.length && sum) return { targets: targets, check: null };
+      // 目標が0のときは、原因を調べるための件数を数える
+      return Promise.all([
+        AppSSO.count("SELECT COUNT() FROM Opportunity WHERE " + rt),
+        AppSSO.count("SELECT COUNT() FROM Opportunity WHERE " + rt + " AND " + dateField + " = null"),
+        AppSSO.count("SELECT COUNT() FROM Opportunity WHERE " + rt + " AND " + inPeriod("CloseDate")),
+      ])
+        .then(function (c) {
+          return { total: c[0], noDate: c[1], closeDateInPeriod: c[2], inPeriod: targets.length, dateField: dateField };
+        })
+        .catch(function (e) {
+          return { error: e.message, inPeriod: targets.length, dateField: dateField };
+        })
+        .then(function (check) {
+          return { targets: targets, check: check };
+        });
     });
   }
 
   // 期間（"YYYY-MM"〜"YYYY-MM"）のデータをまとめて読み込む
   function load(fromYM, toYM, onProgress) {
     return Promise.all([loadUsers(), loadSplits(fromYM, toYM, onProgress), loadTargets(fromYM, toYM)]).then(function (r) {
-      return { users: r[0], splits: r[1].splits, skipped: r[1].skipped, targets: r[2] };
+      return { users: r[0], splits: r[1].splits, skipped: r[1].skipped, targets: r[2].targets, targetCheck: r[2].check };
     });
   }
 

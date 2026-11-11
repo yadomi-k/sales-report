@@ -88,6 +88,9 @@ window.AppSSO = (function () {
         code_challenge_method: "S256",
         scope: "openid email profile api",
         state: state,
+        // 毎回Salesforceのログイン画面を表示する（CaseShelfと同じ）。
+        // 既にSalesforceにログイン済みのブラウザでも、パスキーなど組織の多要素認証を通してからデータを読む
+        prompt: "login",
       });
       window.location.assign(c.myDomainUrl + "/services/oauth2/authorize?" + params.toString());
     });
@@ -283,6 +286,13 @@ window.AppSSO = (function () {
     return next("/query?q=" + encodeURIComponent(soql));
   }
 
+  // 件数だけを数える（SELECT COUNT() ...）
+  function count(soql) {
+    return api("/query?q=" + encodeURIComponent(soql)).then(function (body) {
+      return (body && body.totalSize) || 0;
+    });
+  }
+
   function soqlString(v) {
     return "'" + String(v).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
   }
@@ -300,6 +310,7 @@ window.AppSSO = (function () {
     getSession: getSession,
     endSession: endSession,
     query: query,
+    count: count,
     soqlString: soqlString,
     recordUrl: recordUrl,
   };
