@@ -16,6 +16,7 @@ function defaultFilters() {
     toYM: AppAgg.ymAdd(fromYM, 11),
     quarter: true,
     half: true,
+    targetDate: (AppConfig.target && AppConfig.target.monthBasis) || "close",
     dept: "",
     section: "",
     team: "",
@@ -188,6 +189,13 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
                   );
                 })}
               </div>
+              <label className="field">
+                <span>目標の月の基準</span>
+                <select value={draft.targetDate} onChange={(e) => set({ targetDate: e.target.value })}>
+                  <option value="close">完了予定日（受注日）</option>
+                  <option value="sales">売上日</option>
+                </select>
+              </label>
               <div className="field">
                 <span>集計列</span>
                 <div className="checks">
@@ -555,7 +563,10 @@ function TargetCheck({ check }) {
 
 // 出力ファイルに書く検索条件
 function conditionSummary(f, aff) {
-  const out = [["期間（売上日）", f.fromYM.replace("-", "/") + " 〜 " + f.toYM.replace("-", "/")]];
+  const out = [
+    ["期間（売上日）", f.fromYM.replace("-", "/") + " 〜 " + f.toYM.replace("-", "/")],
+    ["目標の月の基準", f.targetDate === "sales" ? "売上日" : "完了予定日（受注日）"],
+  ];
   const org = [f.dept, f.section, f.team].filter(Boolean).join(" / ");
   if (org) out.push(["部署", org]);
   if (f.owner) out.push(["担当者", aff(f.owner).name]);

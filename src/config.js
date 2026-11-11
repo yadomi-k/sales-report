@@ -54,8 +54,10 @@ window.AppConfig = {
     stageName: "目標",
     salesAmount: "SalesGoal__c", // 売り上げ目標
     profitAmount: "TargetProfit__c", // 目標利益額
-    // 目標の月を判定する日付の項目（通常は実績と同じ売上日）
+    // 目標の売上日の項目（目標の月は「売上日」「完了予定日」のどちらでも判定でき、画面で切り替える）
     dateField: "EstimatedSaleDate__c",
+    // 画面を開いたときの「目標の月の基準」："close"（完了予定日）| "sales"（売上日）
+    monthBasis: "close",
   },
 
   // ユーザ（User）の所属の項目。分割の所有者（実績）・目標の所有者の所属として使う

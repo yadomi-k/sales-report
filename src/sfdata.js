@@ -136,13 +136,15 @@ window.AppSF = (function () {
     var inPeriod = function (f) {
       return f + " >= " + fromYM + "-01 AND " + f + " <= " + lastDay(toYM);
     };
+    // 目標の月は「売上日」「完了予定日」のどちらでも判定できるよう、両方の日付を読む（画面で切り替える）
     var soql =
-      "SELECT Id, OwnerId, " + dateField + ", " + t.salesAmount + ", " + t.profitAmount +
-      " FROM Opportunity WHERE " + rt + " AND " + inPeriod(dateField);
+      "SELECT Id, OwnerId, " + dateField + ", CloseDate, " + t.salesAmount + ", " + t.profitAmount +
+      " FROM Opportunity WHERE " + rt + " AND ((" + inPeriod(dateField) + ") OR (" + inPeriod("CloseDate") + "))";
     return AppSSO.query(soql).then(function (rows) {
       var targets = rows.map(function (r) {
-        var date = String(r[dateField] || "").slice(0, 10);
-        return { oppId: r.Id, ownerId: r.OwnerId, ym: date.slice(0, 7), amount: num(r[t.salesAmount]), profit: num(r[t.profitAmount]) };
+        var ymSales = String(r[dateField] || "").slice(0, 7);
+        var ymClose = String(r.CloseDate || "").slice(0, 7);
+        return { oppId: r.Id, ownerId: r.OwnerId, ym: ymSales, ymSales: ymSales, ymClose: ymClose, amount: num(r[t.salesAmount]), profit: num(r[t.profitAmount]) };
       });
       var sum = targets.reduce(function (a, x) {
         return a + x.amount;
