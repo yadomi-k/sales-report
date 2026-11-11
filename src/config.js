@@ -8,7 +8,7 @@ window.AppConfig = {
     // 会社のSalesforceの「私のドメイン」のURL（CaseShelfと同じ）
     myDomainUrl: "https://shoei.my.salesforce.com",
     // 売上レポート専用の接続アプリケーションの「コンシューマ鍵」（作成後に入れる。手順は docs/salesforce-setup.md）
-    clientId: "",
+    clientId: "3MVG9YDQS5WtC11pWkeuHxMae__H3JzmpOlBsz0KkR65.yVpkhVcMM1dqfBPWWa18l5asfxiN2Q91HltOkXpj",
   },
 
   // 商談分割（OpportunitySplit）：個人の実績は、分割の金額・利益額をそのまま積み上げる
