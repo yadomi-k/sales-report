@@ -48,8 +48,10 @@ window.AppConfig = {
 
   // 目標（商談のうち、レコードタイプが「目標」のもの）
   // 月は「売上日」、部署は目標の「所有者」の部・課・チームで判定する
+  // 「レコードタイプが目標」または「ステージが目標」の商談を目標として読む（実績の集計からは除く）
   target: {
     recordTypeId: "0126F000000oIzFQAU",
+    stageName: "目標",
     salesAmount: "SalesGoal__c", // 売り上げ目標
     profitAmount: "TargetProfit__c", // 目標利益額
     // 目標の月を判定する日付の項目（通常は実績と同じ売上日）

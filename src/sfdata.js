@@ -88,6 +88,7 @@ window.AppSF = (function () {
     var where = ["Opportunity." + o.salesDate + " >= " + fromYM + "-01", "Opportunity." + o.salesDate + " <= " + lastDay(toYM)];
     if ((o.actualRecordTypeIds || []).length) where.push("Opportunity.RecordTypeId IN " + idList(o.actualRecordTypeIds));
     else where.push("Opportunity.RecordTypeId != " + AppSSO.soqlString(t.recordTypeId));
+    if (t.stageName) where.push("Opportunity.StageName != " + AppSSO.soqlString(t.stageName));
     if (s.onlyActiveSplitType) where.push("SplitType.IsActive = true");
     if (s.splitTypeDeveloperName) where.push("SplitType.DeveloperName = " + AppSSO.soqlString(s.splitTypeDeveloperName));
     var soql = "SELECT " + select.join(", ") + " FROM OpportunitySplit WHERE " + where.join(" AND ");
@@ -128,7 +129,10 @@ window.AppSF = (function () {
   function loadTargets(fromYM, toYM) {
     var t = cfg().target;
     var dateField = t.dateField || cfg().opportunity.salesDate;
-    var rt = "RecordTypeId = " + AppSSO.soqlString(t.recordTypeId);
+    var conds = [];
+    if (t.recordTypeId) conds.push("RecordTypeId = " + AppSSO.soqlString(t.recordTypeId));
+    if (t.stageName) conds.push("StageName = " + AppSSO.soqlString(t.stageName));
+    var rt = "(" + conds.join(" OR ") + ")";
     var inPeriod = function (f) {
       return f + " >= " + fromYM + "-01 AND " + f + " <= " + lastDay(toYM);
     };
