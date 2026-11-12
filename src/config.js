@@ -62,6 +62,9 @@ window.AppConfig = {
     department: "Department__c", // 部（テキスト）
     section: "Division__c", // 課（テキスト）
     team: "Team__c", // チーム（テキスト）
+    // 検索条件の部・課・チーム・担当者の選択肢に出す部（部の名前にこの文字が含まれていれば対象）。
+    // [] にすると全員を選択肢に出す
+    salesDepartments: ["営業"],
   },
 
   defaults: {

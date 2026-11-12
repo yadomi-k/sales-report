@@ -674,7 +674,10 @@ function ReportPage({ mode, profile, onLogout }) {
     const seen = new Set();
     data.splits.forEach((s) => seen.add(s.ownerId));
     data.targets.forEach((t) => seen.add(t.ownerId));
-    return data.users.filter((u) => seen.has(u.id) || (u.active && u.dept));
+    // 選択肢は営業部に所属している人だけにする（設定 user.salesDepartments）
+    const keys = AppConfig.user.salesDepartments || [];
+    const isSales = (u) => !keys.length || keys.some((k) => (u.dept || "").indexOf(k) >= 0);
+    return data.users.filter((u) => isSales(u) && (seen.has(u.id) || (u.active && u.dept)));
   }, [data]);
 
   const changeView = (v) => {
