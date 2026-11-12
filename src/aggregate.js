@@ -74,6 +74,19 @@ window.AppAgg = (function () {
     });
   }
 
+  // 設定 user.targetOrgs に書いた順の位置（部署の並び順に使う。設定にないものは後ろ）
+  function orgRank(name) {
+    var order = [];
+    ((window.AppConfig.user && AppConfig.user.targetOrgs) || []).forEach(function (o) {
+      order.push(norm(o.dept));
+      (o.sections || []).forEach(function (x) {
+        order.push(norm(x));
+      });
+    });
+    var i = order.indexOf(norm(name));
+    return i < 0 ? order.length : i;
+  }
+
   function makeAffiliation(users) {
     var byId = {};
     users.forEach(function (u) {
@@ -91,6 +104,8 @@ window.AppAgg = (function () {
     var aff = makeAffiliation(data.users);
     var orgOk = function (userId, date) {
       var u = aff(userId, date);
+      // 対象の部署（設定 user.targetOrgs）の人だけを集計する（全部門の合計・部ごとの表も同じ）
+      if (!isTargetOrg(u)) return false;
       if (f.dept && u.dept !== f.dept) return false;
       if (f.section && u.section !== f.section) return false;
       if (f.team && u.team !== f.team) return false;
@@ -257,8 +272,9 @@ window.AppAgg = (function () {
     if (view.groupBy) {
       var map = {};
       var bucket = function (userId, date) {
-        var g = groupKey(fd.aff(userId, date), view.groupBy);
-        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, splits: [], targets: [] });
+        var u = fd.aff(userId, date);
+        var g = groupKey(u, view.groupBy);
+        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, rank: [orgRank(u.dept), orgRank(u.section)], splits: [], targets: [] });
       };
       fd.splits.forEach(function (s) {
         bucket(s.ownerId, s.salesDate).splits.push(s);
@@ -268,12 +284,15 @@ window.AppAgg = (function () {
       });
       groups = Object.keys(map).map(function (k) {
         var g = map[k];
-        return { key: g.key, label: g.label, cells: computeTable(g.splits, g.targets, columns) };
+        return { key: g.key, label: g.label, rank: g.rank, cells: computeTable(g.splits, g.targets, columns) };
       });
       var last = columns.length - 1;
       if (view.sort === "target") groups.sort(function (a, b) { return b.cells[last].target.amount - a.cells[last].target.amount; });
       else if (view.sort === "won") groups.sort(function (a, b) { return b.cells[last].cum["受注"].amount - a.cells[last].cum["受注"].amount; });
-      else groups.sort(function (a, b) { return a.label.localeCompare(b.label, "ja"); });
+      else
+        groups.sort(function (a, b) {
+          return a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.label.localeCompare(b.label, "ja");
+        });
     }
     var details = fd.splits.slice().sort(function (a, b) {
       return a.salesDate < b.salesDate ? -1 : a.salesDate > b.salesDate ? 1 : a.oppName.localeCompare(b.oppName, "ja");
