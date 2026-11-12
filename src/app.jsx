@@ -168,13 +168,21 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
   const [saveName, setSaveName] = useState("");
   const [savedSel, setSavedSel] = useState("");
 
-  const uniq = (a) => Array.from(new Set(a.filter(Boolean))).sort((x, y) => x.localeCompare(y, "ja"));
+  // 並びは設定 user.targetOrgs の順（設定にないものは名前順で後ろ）
+  const orgs = AppConfig.user.targetOrgs || [];
+  const order = [];
+  orgs.forEach((o) => order.push(o.dept, ...(o.sections || [])));
+  const rank = (v) => {
+    const i = order.findIndex((x) => x.normalize("NFKC") === String(v).normalize("NFKC"));
+    return i < 0 ? order.length : i;
+  };
+  const uniq = (a) => Array.from(new Set(a.filter(Boolean))).sort((x, y) => rank(x) - rank(y) || x.localeCompare(y, "ja"));
   const depts = uniq(users.map((u) => u.dept));
   const sections = uniq(users.filter((u) => !draft.dept || u.dept === draft.dept).map((u) => u.section));
   const teams = uniq(users.filter((u) => (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section)).map((u) => u.team));
   const owners = users
     .filter((u) => u.dept && (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section) && (!draft.team || u.team === draft.team))
-    .sort((a, b) => (a.dept + a.section + a.team + a.name).localeCompare(b.dept + b.section + b.team + b.name, "ja"));
+    .sort((a, b) => rank(a.dept) - rank(b.dept) || rank(a.section) - rank(b.section) || (a.team + a.name).localeCompare(b.team + b.name, "ja"));
   const ownerName = (id) => (users.find((u) => u.id === id) || {}).name || "";
   const levelsSel = draft.levels.length === LEVELS.length ? [] : draft.levels;
   const y = new Date().getFullYear();
@@ -674,10 +682,8 @@ function ReportPage({ mode, profile, onLogout }) {
     const seen = new Set();
     data.splits.forEach((s) => seen.add(s.ownerId));
     data.targets.forEach((t) => seen.add(t.ownerId));
-    // 選択肢は営業部に所属している人だけにする（設定 user.salesDepartments）
-    const keys = AppConfig.user.salesDepartments || [];
-    const isSales = (u) => !keys.length || keys.some((k) => (u.dept || "").indexOf(k) >= 0);
-    return data.users.filter((u) => isSales(u) && (seen.has(u.id) || (u.active && u.dept)));
+    // 選択肢は対象の部署（営業部の各課・クリエイティブ部プランニング課）の人だけにする（設定 user.targetOrgs）
+    return data.users.filter((u) => AppAgg.isTargetOrg(u) && (seen.has(u.id) || (u.active && u.dept)));
   }, [data]);
 
   const changeView = (v) => {

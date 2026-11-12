@@ -56,6 +56,24 @@ window.AppAgg = (function () {
   // 所属（部・課・チーム）
   // 今は「現在の所属」で判定する。第2段階で「売上日の時点の所属」（所属履歴）に差し替える場所。
   // ---------------------------------------------------------------
+  // 選択肢に出す部署（設定 user.targetOrgs）に所属しているか
+  function norm(s) {
+    return String(s || "").normalize("NFKC").trim();
+  }
+  function isTargetOrg(u) {
+    var orgs = (window.AppConfig.user && AppConfig.user.targetOrgs) || [];
+    if (!orgs.length) return true;
+    var dept = norm(u.dept);
+    var section = norm(u.section);
+    return orgs.some(function (o) {
+      var secs = (o.sections || []).map(norm);
+      // 部と課の組み合わせが一致する人（課の指定がなければ部だけで判定）。
+      // 課の名前が「部」の項目に入っている人も対象にする
+      if (dept === norm(o.dept) && (!secs.length || secs.indexOf(section) >= 0)) return true;
+      return secs.indexOf(dept) >= 0;
+    });
+  }
+
   function makeAffiliation(users) {
     var byId = {};
     users.forEach(function (u) {
@@ -307,6 +325,7 @@ window.AppAgg = (function () {
     build: build,
     tableRows: tableRows,
     options: options,
+    isTargetOrg: isTargetOrg,
     fmtYen: fmtYen,
     fmtPct: fmtPct,
     fmtCell: fmtCell,

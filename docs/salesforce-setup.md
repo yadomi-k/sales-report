@@ -41,7 +41,7 @@
 | `target.recordTypeId` / `stageName` | `0126F000001MJJNQA4` / `目標` | レコードタイプ【個人目標】かつステージ「目標」の商談を目標として読む（ステージが目標の商談は実績から除く） |
 | `target.salesAmount` / `profitAmount` | `SalesGoal__c` / `TargetProfit__c` | 売り上げ目標・目標利益額 |
 | `user.department` / `section` / `team` | `Department__c` / `Division__c` / `Team__c` | 部・課・チーム |
-| `user.salesDepartments` | `["営業"]` | 検索条件の部・課・チーム・担当者の選択肢に出す部（部の名前にこの文字を含む人だけ） |
+| `user.targetOrgs` | 営業部（第１営業部・第２営業部・第３営業部・イベント推進室・営業開発室・営業推進部・大阪事業部）、クリエイティブ部（プランニング課） | 検索条件の部・課・チーム・担当者の選択肢に出す部署 |
 
 ### 分割タイプについて
 Salesforceの商談分割には「分割タイプ」（設定 → 商談分割 で確認）があり、1つの商談に分割タイプごとの分割レコードが作られます。
