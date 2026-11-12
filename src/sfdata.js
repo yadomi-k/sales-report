@@ -31,6 +31,7 @@ window.AppSF = (function () {
   function classify(stage, confidenceValue) {
     var o = cfg().opportunity;
     if (stage && (o.wonStages || []).indexOf(stage) >= 0) return "受注";
+    if (stage && (o.otherStages || []).indexOf(stage) >= 0) return "その他";
     if ((o.openStages || []).length && (o.openStages || []).indexOf(stage) < 0) return null;
     var v = confidenceValue == null ? "" : String(confidenceValue);
     var map = o.confidenceValues || {};

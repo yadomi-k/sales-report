@@ -159,7 +159,7 @@ window.AppExport = (function () {
         section: u.section,
         team: u.team,
         stage: s.stage,
-        level: s.level,
+        level: s.level === "その他" ? "" : s.level,
         pct: s.pct,
         amount: Math.round(s.amount),
         profit: Math.round(s.profit),

@@ -545,8 +545,7 @@ select:focus-visible {
     border-right: 1px solid var(--color-border);
     transition: none;
   }
-  .sidebar-overlay,
-  .sidebar-close {
+  .sidebar-overlay {
     display: none;
   }
   .sidebar-inner {
@@ -784,6 +783,39 @@ table.detail td.text {
 }
 table.detail a {
   color: var(--color-accent);
+}
+.stage-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+.stage-tile {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.stage-tile.won {
+  border-color: #b9d3f5;
+  background: var(--color-accent-dim);
+}
+.stage-tile.other {
+  background: #f6f6f7;
+}
+.stage-name {
+  font-size: 0.71875rem;
+  color: var(--color-text-dim);
+  font-weight: 700;
+}
+.stage-count {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.stage-amount {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
 }
 .level {
   display: inline-block;

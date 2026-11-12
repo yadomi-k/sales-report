@@ -56,28 +56,42 @@ window.AppAgg = (function () {
   // 所属（部・課・チーム）
   // 今は「現在の所属」で判定する。第2段階で「売上日の時点の所属」（所属履歴）に差し替える場所。
   // ---------------------------------------------------------------
-  // 選択肢に出す部署（設定 user.targetOrgs）に所属しているか
   function norm(s) {
     return String(s || "").normalize("NFKC").trim();
   }
+  function ucfg() {
+    return (window.AppConfig && AppConfig.user) || {};
+  }
+
+  // 集計の対象にする部署か（設定 user.targetDepts）。sections を書いた部は、その課の人だけ
   function isTargetOrg(u) {
-    var orgs = (window.AppConfig.user && AppConfig.user.targetOrgs) || [];
-    if (!orgs.length) return true;
+    var list = ucfg().targetDepts || [];
+    if (!list.length) return true;
     var dept = norm(u.dept);
     var section = norm(u.section);
-    return orgs.some(function (o) {
+    return list.some(function (o) {
+      if (dept !== norm(o.dept)) return false;
       var secs = (o.sections || []).map(norm);
-      // 部と課の組み合わせが一致する人（課の指定がなければ部だけで判定）。
-      // 課の名前が「部」の項目に入っている人も対象にする
-      if (dept === norm(o.dept) && (!secs.length || secs.indexOf(section) >= 0)) return true;
-      return secs.indexOf(dept) >= 0;
+      return !secs.length || secs.indexOf(section) >= 0;
     });
   }
 
-  // 設定 user.targetOrgs に書いた順の位置（部署の並び順に使う。設定にないものは後ろ）
+  // 部から本部を決める（設定 user.headquarters）
+  function honbuOf(dept) {
+    var d = norm(dept);
+    var hit = (ucfg().headquarters || []).filter(function (h) {
+      return (h.depts || []).map(norm).indexOf(d) >= 0;
+    })[0];
+    return hit ? hit.name : "";
+  }
+
+  // 並び順（本部 → 部 → 課の、設定に書いた順。設定にないものは後ろ）
   function orgRank(name) {
     var order = [];
-    ((window.AppConfig.user && AppConfig.user.targetOrgs) || []).forEach(function (o) {
+    (ucfg().headquarters || []).forEach(function (h) {
+      order.push(norm(h.name));
+    });
+    (ucfg().targetDepts || []).forEach(function (o) {
       order.push(norm(o.dept));
       (o.sections || []).forEach(function (x) {
         order.push(norm(x));
@@ -90,22 +104,22 @@ window.AppAgg = (function () {
   function makeAffiliation(users) {
     var byId = {};
     users.forEach(function (u) {
-      byId[u.id] = u;
+      byId[u.id] = u.honbu !== undefined ? u : Object.assign({}, u, { honbu: honbuOf(u.dept) });
     });
     return function (userId /*, date */) {
-      return byId[userId] || { id: userId, name: "（不明なユーザ）", dept: "", section: "", team: "", active: false };
+      return byId[userId] || { id: userId, name: "（不明なユーザ）", honbu: "", dept: "", section: "", team: "", active: false };
     };
   }
 
   // 検索条件で絞り込む
-  // f: { dept, section, team, owner, stages[], levels[], competitions[], tags[], salesTypes[],
-  //    }
+  // f: { honbu, dept, section, team, owner, stages[], levels[], competitions[], tags[], salesTypes[] }
   function applyFilters(data, f) {
     var aff = makeAffiliation(data.users);
     var orgOk = function (userId, date) {
       var u = aff(userId, date);
-      // 対象の部署（設定 user.targetOrgs）の人だけを集計する（全部門の合計・部ごとの表も同じ）
+      // 対象の部署（設定 user.targetDepts）の人だけを集計する（全部門の合計・部ごとの表も同じ）
       if (!isTargetOrg(u)) return false;
+      if (f.honbu && u.honbu !== f.honbu) return false;
       if (f.dept && u.dept !== f.dept) return false;
       if (f.section && u.section !== f.section) return false;
       if (f.team && u.team !== f.team) return false;
@@ -117,7 +131,8 @@ window.AppAgg = (function () {
     };
     var splits = data.splits.filter(function (s) {
       if (!orgOk(s.ownerId, s.salesDate)) return false;
-      if (has(f.levels) && f.levels.indexOf(s.level) < 0) return false;
+      // 受注確度の条件は、受注・高・中・低の商談にだけかける（失注などはステージの条件で絞る）
+      if (has(f.levels) && LEVELS.indexOf(s.level) >= 0 && f.levels.indexOf(s.level) < 0) return false;
       if (has(f.stages) && f.stages.indexOf(s.stage) < 0) return false;
       if (has(f.competitions) && f.competitions.indexOf(s.competition) < 0) return false;
       if (has(f.salesTypes) && f.salesTypes.indexOf(s.salesType) < 0) return false;
@@ -151,6 +166,7 @@ window.AppAgg = (function () {
       c.target.profit += t.profit;
     });
     splits.forEach(function (s) {
+      if (LEVELS.indexOf(s.level) < 0) return; // 失注などは表・グラフに入れない（明細にだけ出す）
       var m = get(s.ym);
       var x = m.cell.own[s.level];
       x.amount += s.amount;
@@ -249,12 +265,13 @@ window.AppAgg = (function () {
     return out;
   }
 
-  var GROUP_LABELS = { dept: "部", section: "課", team: "チーム", owner: "担当者" };
+  var GROUP_LABELS = { honbu: "本部", dept: "部", section: "課", team: "チーム", owner: "担当者" };
 
   function groupKey(u, by) {
     var none = function (s, label) {
       return s || "（" + label + "未設定）";
     };
+    if (by === "honbu") return { key: u.honbu, label: none(u.honbu, "本部") };
     if (by === "dept") return { key: u.dept, label: none(u.dept, "部") };
     if (by === "section") return { key: u.dept + "|" + u.section, label: none(u.dept, "部") + " / " + none(u.section, "課") };
     if (by === "team")
@@ -274,7 +291,7 @@ window.AppAgg = (function () {
       var bucket = function (userId, date) {
         var u = fd.aff(userId, date);
         var g = groupKey(u, view.groupBy);
-        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, rank: [orgRank(u.dept), orgRank(u.section)], splits: [], targets: [] });
+        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, rank: [orgRank(u.honbu), orgRank(u.dept), orgRank(u.section)], splits: [], targets: [] });
       };
       fd.splits.forEach(function (s) {
         bucket(s.ownerId, s.salesDate).splits.push(s);
@@ -291,7 +308,7 @@ window.AppAgg = (function () {
       else if (view.sort === "won") groups.sort(function (a, b) { return b.cells[last].cum["受注"].amount - a.cells[last].cum["受注"].amount; });
       else
         groups.sort(function (a, b) {
-          return a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.label.localeCompare(b.label, "ja");
+          return a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2] || a.label.localeCompare(b.label, "ja");
         });
     }
     var details = fd.splits.slice().sort(function (a, b) {
@@ -302,8 +319,18 @@ window.AppAgg = (function () {
 
   function totalLabel(f, aff) {
     if (f.owner) return aff(f.owner).name;
-    var parts = [f.dept, f.section, f.team].filter(Boolean);
+    var parts = [f.dept || f.honbu, f.section, f.team].filter(Boolean);
     return parts.length ? parts.join(" / ") : "全部門";
+  }
+
+  // 案件ステージの並び（設定の順：情報 → 受注 → 失注など。設定にないステージは後ろ）
+  function stageList(present) {
+    var o = (window.AppConfig && AppConfig.opportunity) || {};
+    var order = [].concat(o.openStages || [], o.wonStages || [], o.otherStages || []);
+    present.forEach(function (st) {
+      if (st && order.indexOf(st) < 0) order.push(st);
+    });
+    return order;
   }
 
   // 選択肢（データに含まれる値の一覧）
@@ -318,7 +345,7 @@ window.AppAgg = (function () {
       tags.push.apply(tags, s.tags);
     });
     return {
-      stages: uniq(data.splits.map(function (s) { return s.stage; })),
+      stages: stageList(data.splits.map(function (s) { return s.stage; })),
       competitions: uniq(data.splits.map(function (s) { return s.competition; })),
       tags: uniq(tags),
       salesTypes: uniq(data.splits.map(function (s) { return s.salesType; })),
@@ -345,6 +372,8 @@ window.AppAgg = (function () {
     tableRows: tableRows,
     options: options,
     isTargetOrg: isTargetOrg,
+    honbuOf: honbuOf,
+    orgRank: orgRank,
     fmtYen: fmtYen,
     fmtPct: fmtPct,
     fmtCell: fmtCell,

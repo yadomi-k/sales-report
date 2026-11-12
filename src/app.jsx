@@ -4,7 +4,7 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 const LEVELS = AppAgg.LEVELS;
 const SAVED_KEY = "salesreport_saved_conditions_v1";
 const MODE_KEY = "salesreport_mode";
-const LEVEL_COLORS = { 受注: "#3b9ee8", 高: "#4cc4c0", 中: "#ffcc4d", 低: "#9b6bff" };
+const LEVEL_COLORS = { 受注: "#3b9ee8", 高: "#4cc4c0", 中: "#ffcc4d", 低: "#9b6bff", その他: "#d9dce1" };
 const TARGET_COLOR = "#f06292";
 
 function defaultFilters() {
@@ -16,6 +16,7 @@ function defaultFilters() {
     toYM: AppAgg.ymAdd(fromYM, 11),
     quarter: true,
     half: true,
+    honbu: "",
     dept: "",
     section: "",
     team: "",
@@ -168,32 +169,29 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
   const [saveName, setSaveName] = useState("");
   const [savedSel, setSavedSel] = useState("");
 
-  // 並びは設定 user.targetOrgs の順（設定にないものは名前順で後ろ）
-  const orgs = AppConfig.user.targetOrgs || [];
-  const order = [];
-  orgs.forEach((o) => order.push(o.dept, ...(o.sections || [])));
-  const rank = (v) => {
-    const i = order.findIndex((x) => x.normalize("NFKC") === String(v).normalize("NFKC"));
-    return i < 0 ? order.length : i;
-  };
+  // 並びは設定（本部 → 部 → 課）の順。設定にないものは名前順で後ろ
+  const rank = AppAgg.orgRank;
   const uniq = (a) => Array.from(new Set(a.filter(Boolean))).sort((x, y) => rank(x) - rank(y) || x.localeCompare(y, "ja"));
-  const depts = uniq(users.map((u) => u.dept));
-  const sections = uniq(users.filter((u) => !draft.dept || u.dept === draft.dept).map((u) => u.section));
-  const teams = uniq(users.filter((u) => (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section)).map((u) => u.team));
-  const owners = users
+  const inHonbu = users.filter((u) => !draft.honbu || u.honbu === draft.honbu);
+  const honbus = uniq(users.map((u) => u.honbu));
+  const depts = uniq(inHonbu.map((u) => u.dept));
+  const sections = uniq(inHonbu.filter((u) => !draft.dept || u.dept === draft.dept).map((u) => u.section));
+  const teams = uniq(inHonbu.filter((u) => (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section)).map((u) => u.team));
+  const owners = inHonbu
     .filter((u) => u.dept && (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section) && (!draft.team || u.team === draft.team))
     .sort((a, b) => rank(a.dept) - rank(b.dept) || rank(a.section) - rank(b.section) || (a.team + a.name).localeCompare(b.team + b.name, "ja"));
   const ownerName = (id) => (users.find((u) => u.id === id) || {}).name || "";
   const levelsSel = draft.levels.length === LEVELS.length ? [] : draft.levels;
   const y = new Date().getFullYear();
-  const groupLabels = { "": "合計のみ", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" };
+  const groupLabels = { "": "合計のみ", honbu: "本部ごと", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" };
 
   return (
     <div className="sidebar-inner">
       <div className="sidebar-head">
         <div className="sidebar-title">検索・絞り込み</div>
-        <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="閉じる">
-          ×
+        <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="検索・絞り込みを閉じる" title="検索・絞り込みを閉じる">
+          <span className="sp-only">×</span>
+          <span className="pc-only">«</span>
         </button>
       </div>
 
@@ -205,6 +203,16 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
           <input id="f-to" type="month" aria-label="終了月" value={draft.toYM} onChange={(e) => e.target.value && set({ toYM: e.target.value })} />
         </div>
         <div className="quick">
+          {(() => {
+            const now = new Date();
+            const ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+            const on = draft.fromYM === ym && draft.toYM === ym;
+            return (
+              <button type="button" className={"chip small" + (on ? " on" : "")} onClick={() => set({ fromYM: ym, toYM: ym })}>
+                今月
+              </button>
+            );
+          })()}
           {[y - 1, y, y + 1].map((yy) => {
             const on = draft.fromYM === yy + "-01" && draft.toYM === yy + "-12";
             return (
@@ -219,9 +227,20 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
       <SidebarSection
         id="org"
         title="部署・担当者"
-        active={draft.owner ? ownerName(draft.owner) : [draft.dept, draft.section, draft.team].filter(Boolean).join(" / ")}
+        active={draft.owner ? ownerName(draft.owner) : [draft.dept || draft.honbu, draft.section, draft.team].filter(Boolean).join(" / ")}
       >
         <div className="stack">
+          {honbus.length > 0 && (
+            <label className="mini-field">
+              <span>本部</span>
+              <select id="f-honbu" value={draft.honbu} onChange={(e) => set({ honbu: e.target.value, dept: "", section: "", team: "", owner: "" })}>
+                <option value="">すべて</option>
+                {honbus.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="mini-field">
             <span>部</span>
             <select id="f-dept" value={draft.dept} onChange={(e) => set({ dept: e.target.value, section: "", team: "", owner: "" })}>
@@ -298,6 +317,7 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
             <span>表示単位</span>
             <select id="f-group" value={draft.groupBy} onChange={(e) => set({ groupBy: e.target.value })}>
               <option value="">合計のみ</option>
+              {(AppConfig.user.headquarters || []).length > 0 && <option value="honbu">本部ごと</option>}
               <option value="dept">部ごと</option>
               {AppConfig.user.section && <option value="section">課ごと</option>}
               {AppConfig.user.team && <option value="team">チームごと</option>}
@@ -513,11 +533,36 @@ function ReportTable({ title, cells, columns, levels }) {
 function DetailTable({ result, isDemo }) {
   const LIMIT = 500;
   const rows = result.details.slice(0, LIMIT);
-  const sum = result.details.reduce((a, s) => [a[0] + s.amount, a[1] + s.profit], [0, 0]);
+  // 合計は表と同じく受注・高・中・低の分だけ（失注などは含めない）
+  const sum = result.details.reduce((a, s) => (LEVELS.indexOf(s.level) >= 0 ? [a[0] + s.amount, a[1] + s.profit] : a), [0, 0]);
+  // ステージごとの件数・金額（今月の受注・失注などを一目で確認するため）
+  const o = AppConfig.opportunity;
+  const order = [].concat(o.openStages || [], o.wonStages || [], o.otherStages || []);
+  const byStage = {};
+  result.details.forEach((s) => {
+    const x = byStage[s.stage] || (byStage[s.stage] = { ids: new Set(), amount: 0, level: s.level });
+    x.ids.add(s.oppId);
+    x.amount += s.amount;
+  });
+  const stages = Object.keys(byStage).sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
   return (
     <div className="table-block">
+      {stages.length > 0 && (
+        <div className="stage-summary">
+          {stages.map((st) => (
+            <div key={st} className={"stage-tile" + (byStage[st].level === "その他" ? " other" : byStage[st].level === "受注" ? " won" : "")}>
+              <div className="stage-name">{st}</div>
+              <div className="stage-count">{byStage[st].ids.size}件</div>
+              <div className="stage-amount">{AppAgg.fmtYen(byStage[st].amount)}円</div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="table-title">
-        明細（商談分割）{result.details.length.toLocaleString()}件　金額計 {AppAgg.fmtYen(sum[0])} 円 ／ 利益額計 {AppAgg.fmtYen(sum[1])} 円
+        明細（商談分割）{result.details.length.toLocaleString()}件　受注〜低の金額計 {AppAgg.fmtYen(sum[0])} 円 ／ 利益額計 {AppAgg.fmtYen(sum[1])} 円
         {result.details.length > LIMIT && <span className="muted small">　※画面には先頭{LIMIT}件のみ表示（Excel出力には全件）</span>}
       </div>
       <div className="table-scroll">
@@ -556,9 +601,13 @@ function DetailTable({ result, isDemo }) {
                   <td className="text">{[u.dept, u.section, u.team].filter(Boolean).join(" / ")}</td>
                   <td className="text">{s.stage}</td>
                   <td>
-                    <span className="level" style={{ background: LEVEL_COLORS[s.level] }}>
-                      {s.level}
-                    </span>
+                    {s.level === "その他" ? (
+                      <span className="muted">―</span>
+                    ) : (
+                      <span className="level" style={{ background: LEVEL_COLORS[s.level] }}>
+                        {s.level}
+                      </span>
+                    )}
                   </td>
                   <td>{Math.round(s.pct * 100)}%</td>
                   <td>{AppAgg.fmtYen(s.amount)}</td>
@@ -599,7 +648,7 @@ function conditionSummary(f, aff) {
   const out = [
     ["期間（売上日）", f.fromYM.replace("-", "/") + " 〜 " + f.toYM.replace("-", "/")],
   ];
-  const org = [f.dept, f.section, f.team].filter(Boolean).join(" / ");
+  const org = [f.honbu, f.dept, f.section, f.team].filter(Boolean).join(" / ");
   if (org) out.push(["部署", org]);
   if (f.owner) out.push(["担当者", aff(f.owner).name]);
   out.push(["受注確度", f.levels.join("、")]);
@@ -683,7 +732,9 @@ function ReportPage({ mode, profile, onLogout }) {
     data.splits.forEach((s) => seen.add(s.ownerId));
     data.targets.forEach((t) => seen.add(t.ownerId));
     // 選択肢は対象の部署（営業部の各課・クリエイティブ部プランニング課）の人だけにする（設定 user.targetOrgs）
-    return data.users.filter((u) => AppAgg.isTargetOrg(u) && (seen.has(u.id) || (u.active && u.dept)));
+    return data.users
+      .filter((u) => AppAgg.isTargetOrg(u) && (seen.has(u.id) || (u.active && u.dept)))
+      .map((u) => Object.assign({}, u, { honbu: AppAgg.honbuOf(u.dept) }));
   }, [data]);
 
   const changeView = (v) => {
@@ -726,11 +777,12 @@ function ReportPage({ mode, profile, onLogout }) {
   if (applied && result) {
     chips.push(applied.fromYM.replace("-", "/") + "〜" + applied.toYM.replace("-", "/"));
     if (applied.owner) chips.push(result.aff(applied.owner).name);
-    else if (applied.dept || applied.section || applied.team) chips.push([applied.dept, applied.section, applied.team].filter(Boolean).join(" / "));
+    else if (applied.honbu || applied.dept || applied.section || applied.team)
+      chips.push([applied.dept || applied.honbu, applied.section, applied.team].filter(Boolean).join(" / "));
     if (applied.levels.length < LEVELS.length) chips.push("確度：" + applied.levels.join("・"));
     if (applied.stages.length) chips.push("ステージ：" + applied.stages.length + "件");
     if (applied.competitions.length) chips.push(applied.competitions.join("・"));
-    if (applied.groupBy) chips.push({ dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" }[applied.groupBy]);
+    if (applied.groupBy) chips.push({ honbu: "本部ごと", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" }[applied.groupBy]);
   }
 
   return (
