@@ -731,7 +731,7 @@ function ReportPage({ mode, profile, onLogout }) {
     const seen = new Set();
     data.splits.forEach((s) => seen.add(s.ownerId));
     data.targets.forEach((t) => seen.add(t.ownerId));
-    // 選択肢は対象の部署（営業部の各課・クリエイティブ部プランニング課）の人だけにする（設定 user.targetOrgs）
+    // 選択肢は対象の部署の人だけにする（設定 user.targetDepts）。本部は部から決める（設定 user.headquarters）
     return data.users
       .filter((u) => AppAgg.isTargetOrg(u) && (seen.has(u.id) || (u.active && u.dept)))
       .map((u) => Object.assign({}, u, { honbu: AppAgg.honbuOf(u.dept) }));
