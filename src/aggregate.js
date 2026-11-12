@@ -68,7 +68,7 @@ window.AppAgg = (function () {
 
   // 検索条件で絞り込む
   // f: { dept, section, team, owner, stages[], levels[], competitions[], tags[], salesTypes[],
-  //      amountMin, amountMax, account, keyword }
+  //    }
   function applyFilters(data, f) {
     var aff = makeAffiliation(data.users);
     var orgOk = function (userId, date) {
@@ -82,10 +82,6 @@ window.AppAgg = (function () {
     var has = function (list) {
       return list && list.length > 0;
     };
-    var acc = (f.account || "").trim().toLowerCase();
-    var kw = (f.keyword || "").trim().toLowerCase();
-    var min = f.amountMin === "" || f.amountMin == null ? null : Number(f.amountMin);
-    var max = f.amountMax === "" || f.amountMax == null ? null : Number(f.amountMax);
     var splits = data.splits.filter(function (s) {
       if (!orgOk(s.ownerId, s.salesDate)) return false;
       if (has(f.levels) && f.levels.indexOf(s.level) < 0) return false;
@@ -93,10 +89,6 @@ window.AppAgg = (function () {
       if (has(f.competitions) && f.competitions.indexOf(s.competition) < 0) return false;
       if (has(f.salesTypes) && f.salesTypes.indexOf(s.salesType) < 0) return false;
       if (has(f.tags) && !s.tags.some(function (t) { return f.tags.indexOf(t) >= 0; })) return false;
-      if (min != null && s.amount < min) return false;
-      if (max != null && s.amount > max) return false;
-      if (acc && s.accountName.toLowerCase().indexOf(acc) < 0) return false;
-      if (kw && s.oppName.toLowerCase().indexOf(kw) < 0) return false;
       return true;
     });
     // 目標は組織（部・課・チーム・担当者）の条件だけで絞り込む

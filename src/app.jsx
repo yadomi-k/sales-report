@@ -25,10 +25,6 @@ function defaultFilters() {
     competitions: [],
     tags: [],
     salesTypes: [],
-    amountMin: "",
-    amountMax: "",
-    account: "",
-    keyword: "",
     groupBy: "",
     sort: "name",
   };
@@ -86,29 +82,91 @@ function LoginPage({ onDemo, error }) {
 }
 
 // ---------------------------------------------------------------
-// 検索条件
+// 検索・絞り込み（CaseShelfと同じサイドバー。PCは左に固定、スマートフォンは左から開く）
 // ---------------------------------------------------------------
-function Checks({ all, selected, onChange, empty }) {
-  if (!all.length) return <span className="muted small">{empty || "（データなし）"}</span>;
-  const cur = selected.length ? selected : all;
+const SECTION_PREF = "salesreport_sidebar_sections";
+const SIDEBAR_PREF = "salesreport_sidebar_closed";
+
+function readPref(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : JSON.parse(v);
+  } catch (e) {
+    return fallback;
+  }
+}
+function writePref(key, v) {
+  try {
+    localStorage.setItem(key, JSON.stringify(v));
+  } catch (e) {}
+}
+
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true };
+
+function SidebarSection({ id, title, active, children }) {
+  const [open, setOpen] = useState(() => {
+    const p = readPref(SECTION_PREF, {});
+    return id in p ? !!p[id] : !!DEFAULT_OPEN[id];
+  });
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    const p = readPref(SECTION_PREF, {});
+    p[id] = next;
+    writePref(SECTION_PREF, p);
+  };
   return (
-    <div className="checks">
-      {all.map((v) => (
-        <label key={v} className="check">
-          <input type="checkbox" checked={cur.indexOf(v) >= 0} onChange={() => onChange(toggleIn(selected, all, v))} />
-          {v}
-        </label>
-      ))}
+    <div className={"sidebar-section" + (open ? " open" : "")}>
+      <button type="button" className="sidebar-sec-head" onClick={toggle} aria-expanded={open} aria-controls={"sec-" + id}>
+        <span className="sidebar-label">{title}</span>
+        {!open && active ? <span className="sidebar-sec-active">{active}</span> : null}
+        <span className="sidebar-sec-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <div className="sidebar-sec-body" id={"sec-" + id}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
 
-function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading, saved, onSave, onLoadSaved, onDeleteSaved }) {
+// 複数選択のチップ（空の配列 = すべて）
+function ChipChoices({ all, selected, onChange, colors, empty }) {
+  if (!all.length) return <div className="sidebar-hint">{empty || "該当するデータがありません"}</div>;
+  const cur = selected.length ? selected : all;
+  return (
+    <div className="chips">
+      {all.map((v) => {
+        const on = cur.indexOf(v) >= 0;
+        return (
+          <button
+            type="button"
+            key={v}
+            className={"chip" + (on ? " on" : "")}
+            aria-pressed={on}
+            onClick={() => {
+              const next = toggleIn(selected, all, v);
+              if (next.length === 0 && on && cur.length === 1) return; // 最後の1つは外さない
+              onChange(next);
+            }}
+          >
+            {colors && <span className="chip-dot" style={{ background: colors[v] }} />}
+            {v}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClose, loading, dirty, saved, onSave, onLoadSaved, onDeleteSaved }) {
   const cfg = AppConfig.opportunity;
   const set = (patch) => setDraft(Object.assign({}, draft, patch));
   const [saveName, setSaveName] = useState("");
   const [savedSel, setSavedSel] = useState("");
-  const [open, setOpen] = useState(true);
 
   const uniq = (a) => Array.from(new Set(a.filter(Boolean))).sort((x, y) => x.localeCompare(y, "ja"));
   const depts = uniq(users.map((u) => u.dept));
@@ -117,220 +175,195 @@ function FilterPanel({ draft, setDraft, users, opts, onSearch, onClear, loading,
   const owners = users
     .filter((u) => u.dept && (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section) && (!draft.team || u.team === draft.team))
     .sort((a, b) => (a.dept + a.section + a.team + a.name).localeCompare(b.dept + b.section + b.team + b.name, "ja"));
+  const ownerName = (id) => (users.find((u) => u.id === id) || {}).name || "";
+  const levelsSel = draft.levels.length === LEVELS.length ? [] : draft.levels;
+  const y = new Date().getFullYear();
+  const groupLabels = { "": "合計のみ", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" };
 
   return (
-    <section className="panel">
-      <div className="panel-head" onClick={() => setOpen(!open)}>
-        <span className="caret">{open ? "▾" : "▸"}</span> 検索条件
+    <div className="sidebar-inner">
+      <div className="sidebar-head">
+        <div className="sidebar-title">検索・絞り込み</div>
+        <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="閉じる">
+          ×
+        </button>
       </div>
-      {open && (
-        <div className="panel-body">
-          <div className="saved-bar">
-            <label className="field">
-              <span>保存した条件</span>
-              <select
-                value={savedSel}
-                onChange={(e) => {
-                  setSavedSel(e.target.value);
-                  if (e.target.value !== "") onLoadSaved(Number(e.target.value));
-                }}
-              >
-                <option value="">選択してください</option>
-                {saved.map((s, i) => (
-                  <option key={i} value={i}>
-                    {s.name}
-                  </option>
+
+      <SidebarSection id="period" title="期間（売上日）" active={draft.fromYM.replace("-", "/") + "〜" + draft.toYM.replace("-", "/")}>
+        <div className="period">
+          <span>開始</span>
+          <input id="f-from" type="month" aria-label="開始月" value={draft.fromYM} onChange={(e) => e.target.value && set({ fromYM: e.target.value })} />
+          <span>終了</span>
+          <input id="f-to" type="month" aria-label="終了月" value={draft.toYM} onChange={(e) => e.target.value && set({ toYM: e.target.value })} />
+        </div>
+        <div className="quick">
+          {[y - 1, y, y + 1].map((yy) => {
+            const on = draft.fromYM === yy + "-01" && draft.toYM === yy + "-12";
+            return (
+              <button type="button" key={yy} className={"chip small" + (on ? " on" : "")} onClick={() => set({ fromYM: yy + "-01", toYM: yy + "-12" })}>
+                {yy}年
+              </button>
+            );
+          })}
+        </div>
+      </SidebarSection>
+
+      <SidebarSection
+        id="org"
+        title="部署・担当者"
+        active={draft.owner ? ownerName(draft.owner) : [draft.dept, draft.section, draft.team].filter(Boolean).join(" / ")}
+      >
+        <div className="stack">
+          <label className="mini-field">
+            <span>部</span>
+            <select id="f-dept" value={draft.dept} onChange={(e) => set({ dept: e.target.value, section: "", team: "", owner: "" })}>
+              <option value="">すべて</option>
+              {depts.map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          {AppConfig.user.section && (
+            <label className="mini-field">
+              <span>課</span>
+              <select id="f-section" value={draft.section} onChange={(e) => set({ section: e.target.value, team: "", owner: "" })}>
+                <option value="">すべて</option>
+                {sections.map((d) => (
+                  <option key={d}>{d}</option>
                 ))}
               </select>
             </label>
-            {savedSel !== "" && (
-              <button
-                className="btn small"
-                onClick={() => {
-                  onDeleteSaved(Number(savedSel));
-                  setSavedSel("");
-                }}
-              >
-                削除
-              </button>
-            )}
-            <input className="name-input" placeholder="条件の名前" value={saveName} onChange={(e) => setSaveName(e.target.value)} />
+          )}
+          {AppConfig.user.team && (
+            <label className="mini-field">
+              <span>チーム</span>
+              <select id="f-team" value={draft.team} onChange={(e) => set({ team: e.target.value, owner: "" })}>
+                <option value="">すべて</option>
+                {teams.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="mini-field">
+            <span>担当者</span>
+            <select id="f-owner" value={draft.owner} onChange={(e) => set({ owner: e.target.value })}>
+              <option value="">すべて</option>
+              {owners.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                  {u.active ? "" : "（無効）"}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </SidebarSection>
+
+      <SidebarSection id="level" title="受注確度" active={levelsSel.length ? levelsSel.join("・") : ""}>
+        <ChipChoices all={LEVELS} selected={levelsSel} colors={LEVEL_COLORS} onChange={(v) => set({ levels: v.length ? v : LEVELS.slice() })} />
+      </SidebarSection>
+
+      <SidebarSection id="stage" title="案件ステージ" active={draft.stages.length ? draft.stages.length + "件選択" : ""}>
+        <ChipChoices all={opts.stages} selected={draft.stages} onChange={(v) => set({ stages: v })} empty="検索すると、データにあるステージが表示されます" />
+      </SidebarSection>
+
+      {cfg.competition && (
+        <SidebarSection id="compe" title="コンペ区分" active={draft.competitions.join("・")}>
+          <ChipChoices all={opts.competitions} selected={draft.competitions} onChange={(v) => set({ competitions: v })} />
+        </SidebarSection>
+      )}
+      {cfg.tags && (
+        <SidebarSection id="tags" title="タグ" active={draft.tags.join("・")}>
+          <ChipChoices all={opts.tags} selected={draft.tags} onChange={(v) => set({ tags: v })} />
+        </SidebarSection>
+      )}
+      {cfg.salesType && (
+        <SidebarSection id="salesType" title="営業種別" active={draft.salesTypes.join("・")}>
+          <ChipChoices all={opts.salesTypes} selected={draft.salesTypes} onChange={(v) => set({ salesTypes: v })} />
+        </SidebarSection>
+      )}
+
+      <SidebarSection id="display" title="表示" active={draft.groupBy ? groupLabels[draft.groupBy] : ""}>
+        <div className="stack">
+          <label className="mini-field">
+            <span>表示単位</span>
+            <select id="f-group" value={draft.groupBy} onChange={(e) => set({ groupBy: e.target.value })}>
+              <option value="">合計のみ</option>
+              <option value="dept">部ごと</option>
+              {AppConfig.user.section && <option value="section">課ごと</option>}
+              {AppConfig.user.team && <option value="team">チームごと</option>}
+              <option value="owner">担当者ごと</option>
+            </select>
+          </label>
+          {draft.groupBy && (
+            <label className="mini-field">
+              <span>並び順</span>
+              <select id="f-sort" value={draft.sort} onChange={(e) => set({ sort: e.target.value })}>
+                <option value="name">名前順</option>
+                <option value="target">目標の大きい順</option>
+                <option value="won">受注金額の大きい順</option>
+              </select>
+            </label>
+          )}
+          <div className="mini-field">
+            <span>集計列</span>
+            <label className="check">
+              <input id="f-quarter" type="checkbox" checked={draft.quarter} onChange={(e) => set({ quarter: e.target.checked })} />
+              四半期合計
+            </label>
+            <label className="check">
+              <input id="f-half" type="checkbox" checked={draft.half} onChange={(e) => set({ half: e.target.checked })} />
+              上期計・下期計
+            </label>
+          </div>
+        </div>
+      </SidebarSection>
+
+      <SidebarSection id="saved" title="保存した条件" active={saved.length ? saved.length + "件" : ""}>
+        <div className="stack">
+          {saved.length > 0 && (
+            <div className="saved-list">
+              {saved.map((s, i) => (
+                <div key={i} className="saved-item">
+                  <button type="button" className="saved-name" onClick={() => onLoadSaved(i)} title="この条件で検索する">
+                    {s.name}
+                  </button>
+                  <button type="button" className="icon-btn small" onClick={() => onDeleteSaved(i)} aria-label={s.name + "を削除"}>
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="save-row">
+            <input id="f-save-name" placeholder="今の条件に名前を付ける" value={saveName} onChange={(e) => setSaveName(e.target.value)} />
             <button
-              className="btn small"
+              type="button"
+              className="btn sm"
               disabled={!saveName.trim()}
               onClick={() => {
                 onSave(saveName.trim());
                 setSaveName("");
               }}
             >
-              今の条件を保存
+              保存
             </button>
           </div>
-
-          <div className="grid">
-            <div className="row">
-              <label className="field">
-                <span>期間（売上日）</span>
-                <input type="month" value={draft.fromYM} onChange={(e) => e.target.value && set({ fromYM: e.target.value })} />
-              </label>
-              <span className="tilde">〜</span>
-              <label className="field">
-                <span>&nbsp;</span>
-                <input type="month" value={draft.toYM} onChange={(e) => e.target.value && set({ toYM: e.target.value })} />
-              </label>
-              <div className="quick">
-                {[-1, 0, 1].map((d) => {
-                  const y = new Date().getFullYear() + d;
-                  return (
-                    <button key={d} className="btn tiny" onClick={() => set({ fromYM: y + "-01", toYM: y + "-12" })}>
-                      {y}年
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="field">
-                <span>集計列</span>
-                <div className="checks">
-                  <label className="check">
-                    <input type="checkbox" checked={draft.quarter} onChange={(e) => set({ quarter: e.target.checked })} />
-                    四半期計
-                  </label>
-                  <label className="check">
-                    <input type="checkbox" checked={draft.half} onChange={(e) => set({ half: e.target.checked })} />
-                    上期・下期計
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="row">
-              <label className="field">
-                <span>部</span>
-                <select value={draft.dept} onChange={(e) => set({ dept: e.target.value, section: "", team: "", owner: "" })}>
-                  <option value="">すべて</option>
-                  {depts.map((d) => (
-                    <option key={d}>{d}</option>
-                  ))}
-                </select>
-              </label>
-              {AppConfig.user.section && <label className="field">
-                <span>課</span>
-                <select value={draft.section} onChange={(e) => set({ section: e.target.value, team: "", owner: "" })}>
-                  <option value="">すべて</option>
-                  {sections.map((d) => (
-                    <option key={d}>{d}</option>
-                  ))}
-                </select>
-              </label>}
-              {AppConfig.user.team && <label className="field">
-                <span>チーム</span>
-                <select value={draft.team} onChange={(e) => set({ team: e.target.value, owner: "" })}>
-                  <option value="">すべて</option>
-                  {teams.map((d) => (
-                    <option key={d}>{d}</option>
-                  ))}
-                </select>
-              </label>}
-              <label className="field">
-                <span>担当者</span>
-                <select value={draft.owner} onChange={(e) => set({ owner: e.target.value })}>
-                  <option value="">すべて</option>
-                  {owners.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                      {u.active ? "" : "（無効）"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="row">
-              <div className="field">
-                <span>受注確度</span>
-                <Checks all={LEVELS} selected={draft.levels.length === LEVELS.length ? [] : draft.levels} onChange={(v) => set({ levels: v.length ? v : LEVELS.slice() })} />
-              </div>
-            </div>
-            <div className="row">
-              <div className="field wide">
-                <span>案件ステージ</span>
-                <Checks all={opts.stages} selected={draft.stages} onChange={(v) => set({ stages: v })} empty="（検索するとデータにあるステージが表示されます）" />
-              </div>
-            </div>
-            {(cfg.competition || cfg.tags || cfg.salesType) && (
-              <div className="row">
-                {cfg.competition && (
-                  <div className="field">
-                    <span>コンペ区分</span>
-                    <Checks all={opts.competitions} selected={draft.competitions} onChange={(v) => set({ competitions: v })} />
-                  </div>
-                )}
-                {cfg.tags && (
-                  <div className="field">
-                    <span>タグ（いずれかを含む）</span>
-                    <Checks all={opts.tags} selected={draft.tags} onChange={(v) => set({ tags: v })} />
-                  </div>
-                )}
-                {cfg.salesType && (
-                  <div className="field">
-                    <span>営業種別</span>
-                    <Checks all={opts.salesTypes} selected={draft.salesTypes} onChange={(v) => set({ salesTypes: v })} />
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="row">
-              <label className="field">
-                <span>分割の金額（円）</span>
-                <div className="inline">
-                  <input type="number" min="0" value={draft.amountMin} placeholder="下限" onChange={(e) => set({ amountMin: e.target.value })} />
-                  <span className="tilde">〜</span>
-                  <input type="number" min="0" value={draft.amountMax} placeholder="上限" onChange={(e) => set({ amountMax: e.target.value })} />
-                </div>
-              </label>
-              <label className="field">
-                <span>取引先名（部分一致）</span>
-                <input value={draft.account} onChange={(e) => set({ account: e.target.value })} placeholder="取引先名を入力" />
-              </label>
-              <label className="field">
-                <span>商談名（部分一致）</span>
-                <input value={draft.keyword} onChange={(e) => set({ keyword: e.target.value })} placeholder="商談名を入力" />
-              </label>
-            </div>
-            <div className="row">
-              <label className="field">
-                <span>表示単位</span>
-                <select value={draft.groupBy} onChange={(e) => set({ groupBy: e.target.value })}>
-                  <option value="">合計のみ</option>
-                  <option value="dept">部ごと</option>
-                  {AppConfig.user.section && <option value="section">課ごと</option>}
-                  {AppConfig.user.team && <option value="team">チームごと</option>}
-                  <option value="owner">担当者ごと</option>
-                </select>
-              </label>
-              {draft.groupBy && (
-                <label className="field">
-                  <span>並び順</span>
-                  <select value={draft.sort} onChange={(e) => set({ sort: e.target.value })}>
-                    <option value="name">名前順</option>
-                    <option value="target">目標の大きい順</option>
-                    <option value="won">受注金額の大きい順</option>
-                  </select>
-                </label>
-              )}
-            </div>
-          </div>
-          <div className="actions">
-            <button className="btn primary" onClick={onSearch} disabled={loading}>
-              {loading ? "読み込み中…" : "検索"}
-            </button>
-            <button className="btn" onClick={onClear} disabled={loading}>
-              クリア
-            </button>
-          </div>
+          <div className="sidebar-hint">保存した条件は、このブラウザにだけ保存されます。</div>
         </div>
-      )}
-    </section>
+      </SidebarSection>
+
+      <div className="sidebar-foot">
+        {dirty && <div className="sidebar-dirty">条件が変更されています</div>}
+        <button type="button" className="btn primary block" onClick={onSearch} disabled={loading}>
+          {loading ? "読み込み中…" : "この条件で検索"}
+        </button>
+        <button type="button" className="link-btn" onClick={onClear} disabled={loading}>
+          条件をクリア
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -424,7 +457,7 @@ function ReportTable({ title, cells, columns, levels }) {
   const rows = AppAgg.tableRows(cells, levels);
   return (
     <div className="table-block">
-      <div className="table-title">{title}</div>
+      {title && <div className="table-title">{title}</div>}
       <div className="table-scroll">
         <table className="report">
           <thead>
@@ -566,9 +599,6 @@ function conditionSummary(f, aff) {
   if (f.competitions.length) out.push(["コンペ区分", f.competitions.join("、")]);
   if (f.tags.length) out.push(["タグ", f.tags.join("、")]);
   if (f.salesTypes.length) out.push(["営業種別", f.salesTypes.join("、")]);
-  if (f.amountMin || f.amountMax) out.push(["売上金額", (f.amountMin || "") + " 〜 " + (f.amountMax || "")]);
-  if (f.account) out.push(["取引先名", f.account]);
-  if (f.keyword) out.push(["商談名", f.keyword]);
   return out;
 }
 
@@ -594,6 +624,15 @@ function ReportPage({ mode, profile, onLogout }) {
   const [metric, setMetric] = useState("amount");
   const [saved, setSaved] = useState(readSaved);
   const [exporting, setExporting] = useState(false);
+  const [sidebarClosed, setSidebarClosed] = useState(() => !!readPref(SIDEBAR_PREF, false));
+  const [panelOpen, setPanelOpen] = useState(false);
+  useEffect(() => {
+    // スマートフォンでパネルを開いている間は、後ろの画面をスクロールさせない。Escで閉じる
+    document.body.classList.toggle("no-scroll", panelOpen);
+    const onKey = (e) => e.key === "Escape" && setPanelOpen(false);
+    if (panelOpen) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panelOpen]);
 
   const search = useCallback(
     (f) => {
@@ -661,114 +700,174 @@ function ReportPage({ mode, profile, onLogout }) {
 
   const dirty = applied && JSON.stringify(applied) !== JSON.stringify(draft);
 
+  const isDesktop = () => window.matchMedia && window.matchMedia("(min-width: 860px)").matches;
+  const toggleSidebar = () => {
+    if (isDesktop()) {
+      setSidebarClosed(!sidebarClosed);
+      writePref(SIDEBAR_PREF, !sidebarClosed);
+    } else setPanelOpen(true);
+  };
+  const runSearch = (f) => {
+    search(f);
+    if (!isDesktop()) setPanelOpen(false);
+  };
+
+  // 結果の上に出す、今の検索条件
+  const chips = [];
+  if (applied && result) {
+    chips.push(applied.fromYM.replace("-", "/") + "〜" + applied.toYM.replace("-", "/"));
+    if (applied.owner) chips.push(result.aff(applied.owner).name);
+    else if (applied.dept || applied.section || applied.team) chips.push([applied.dept, applied.section, applied.team].filter(Boolean).join(" / "));
+    if (applied.levels.length < LEVELS.length) chips.push("確度：" + applied.levels.join("・"));
+    if (applied.stages.length) chips.push("ステージ：" + applied.stages.length + "件");
+    if (applied.competitions.length) chips.push(applied.competitions.join("・"));
+    if (applied.groupBy) chips.push({ dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" }[applied.groupBy]);
+  }
+
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">売上レポート{isDemo && <span className="badge">デモデータ</span>}</div>
+        <div className="brand">
+          売上レポート{isDemo && <span className="badge">デモデータ</span>}
+        </div>
         <div className="who">
-          {profile && profile.name && <span>{profile.name}</span>}
+          {profile && profile.name && <span className="who-name">{profile.name}</span>}
           {onLogout && (
-            <button className="btn small ghost" onClick={onLogout}>
+            <button className="btn sm ghost" onClick={onLogout}>
               {isDemo ? "終了" : "ログアウト"}
             </button>
           )}
         </div>
       </header>
-      <main>
-        <FilterPanel
-          draft={draft}
-          setDraft={setDraft}
-          users={users}
-          opts={opts}
-          loading={loading}
-          onSearch={() => search(draft)}
-          onClear={() => setDraft(defaultFilters())}
-          saved={saved}
-          onSave={(name) => {
-            const list = saved.filter((s) => s.name !== name).concat([{ name, filters: draft }]);
-            setSaved(list);
-            writeSaved(list);
-          }}
-          onLoadSaved={(i) => {
-            const f = Object.assign(defaultFilters(), saved[i].filters);
-            setDraft(f);
-            search(f);
-          }}
-          onDeleteSaved={(i) => {
-            const list = saved.filter((_, j) => j !== i);
-            setSaved(list);
-            writeSaved(list);
-          }}
-        />
 
-        {error && <div className="alert error">{error}</div>}
-        {loading && <div className="alert info">Salesforceからデータを読み込んでいます… {progress}</div>}
-        {data && data.skipped && Object.keys(data.skipped).length > 0 && !loading && (
-          <div className="alert info small">
-            集計の対象外にした商談分割があります（ステージが受注・高・中・低のどれにもあたらないもの）：
-            {Object.keys(data.skipped)
-              .map((k) => k + " " + data.skipped[k] + "件")
-              .join("、")}
+      <div className={"layout" + (sidebarClosed ? " sidebar-closed" : "")}>
+        <aside className={"sidebar" + (panelOpen ? " open" : "")} aria-label="検索・絞り込み">
+          <SearchSidebar
+            draft={draft}
+            setDraft={setDraft}
+            users={users}
+            opts={opts}
+            loading={loading}
+            dirty={dirty}
+            onSearch={() => runSearch(draft)}
+            onClear={() => setDraft(defaultFilters())}
+            onClose={() => (isDesktop() ? toggleSidebar() : setPanelOpen(false))}
+            saved={saved}
+            onSave={(name) => {
+              const list = saved.filter((s) => s.name !== name).concat([{ name, filters: draft }]);
+              setSaved(list);
+              writeSaved(list);
+            }}
+            onLoadSaved={(i) => {
+              const f = Object.assign(defaultFilters(), saved[i].filters);
+              setDraft(f);
+              runSearch(f);
+            }}
+            onDeleteSaved={(i) => {
+              const list = saved.filter((_, j) => j !== i);
+              setSaved(list);
+              writeSaved(list);
+            }}
+          />
+        </aside>
+        {panelOpen && <div className="sidebar-overlay" onClick={() => setPanelOpen(false)} />}
+
+        <main className="main">
+          <div className="filter-bar">
+            <button type="button" className={"btn sm filter-btn" + (!sidebarClosed ? " pc-open" : "")} onClick={toggleSidebar}>
+              <SearchIcon />
+              <span className="sp-only">検索・絞り込み</span>
+              <span className="pc-only">{sidebarClosed ? "検索・絞り込みを開く" : "検索・絞り込みを閉じる"}</span>
+            </button>
+            <div className="conds">
+              {chips.map((c, i) => (
+                <span key={i} className="cond">
+                  {c}
+                </span>
+              ))}
+            </div>
+            {result && <span className="count">商談分割 {result.details.length.toLocaleString()}件</span>}
           </div>
-        )}
-        {data && data.targetCheck && !loading && <TargetCheck check={data.targetCheck} />}
-        {dirty && !loading && <div className="alert warn">検索条件が変更されています。「検索」を押すと結果に反映されます。</div>}
 
-        {result && (
-          <section className="panel">
-            <div className="panel-head static">
-              結果：{result.total.label}
-              <span className="muted small">
-                　{applied.fromYM.replace("-", "/")}〜{applied.toYM.replace("-", "/")}　商談分割 {result.details.length.toLocaleString()}件
-              </span>
+          {error && <div className="alert error">{error}</div>}
+          {loading && <div className="alert info">Salesforceからデータを読み込んでいます… {progress}</div>}
+          {data && data.skipped && Object.keys(data.skipped).length > 0 && !loading && (
+            <div className="alert info small">
+              集計の対象外にした商談分割があります（ステージが受注・高・中・低のどれにもあたらないもの）：
+              {Object.keys(data.skipped)
+                .map((k) => k + " " + data.skipped[k] + "件")
+                .join("、")}
             </div>
-            <div className="toolbar">
-              <div className="seg">
-                {[
-                  ["both", "表とグラフ"],
-                  ["table", "表"],
-                  ["chart", "グラフ"],
-                  ["detail", "明細"],
-                ].map(([k, l]) => (
-                  <button key={k} className={view === k ? "on" : ""} onClick={() => changeView(k)}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-              {(view === "both" || view === "chart") && (
-                <div className="seg">
-                  {[
-                    ["amount", "売上"],
-                    ["profit", "利益"],
-                  ].map(([k, l]) => (
-                    <button key={k} className={metric === k ? "on" : ""} onClick={() => setMetric(k)}>
-                      {l}
-                    </button>
-                  ))}
+          )}
+          {data && data.targetCheck && !loading && <TargetCheck check={data.targetCheck} />}
+
+          {result && (
+            <section className="card">
+              <div className="card-head">
+                <div className="card-title">
+                  {result.total.label}
+                  <span className="card-sub">
+                    {applied.fromYM.replace("-", "/")}〜{applied.toYM.replace("-", "/")}
+                  </span>
                 </div>
+                <div className="toolbar">
+                  <div className="seg" role="group" aria-label="表示">
+                    {[
+                      ["both", "表とグラフ"],
+                      ["table", "表"],
+                      ["chart", "グラフ"],
+                      ["detail", "明細"],
+                    ].map(([k, l]) => (
+                      <button key={k} className={view === k ? "on" : ""} aria-pressed={view === k} onClick={() => changeView(k)}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  {(view === "both" || view === "chart") && (
+                    <div className="seg" role="group" aria-label="グラフの値">
+                      {[
+                        ["amount", "売上"],
+                        ["profit", "利益"],
+                      ].map(([k, l]) => (
+                        <button key={k} className={metric === k ? "on" : ""} aria-pressed={metric === k} onClick={() => setMetric(k)}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="spacer" />
+                  <button className="btn sm primary" onClick={() => doExport("xlsx")} disabled={exporting}>
+                    {exporting ? "作成中…" : "Excel"}
+                  </button>
+                  <button className="btn sm" onClick={() => doExport("csv")}>
+                    CSV
+                  </button>
+                </div>
+              </div>
+              {(view === "both" || view === "chart") && <ReportChart result={result} levels={applied.levels} metric={metric} />}
+              {(view === "both" || view === "table") && (
+                <>
+                  <ReportTable title={result.groups.length ? result.total.label : ""} cells={result.total.cells} columns={result.columns} levels={applied.levels} />
+                  {result.groups.map((g) => (
+                    <ReportTable key={g.key} title={g.label} cells={g.cells} columns={result.columns} levels={applied.levels} />
+                  ))}
+                </>
               )}
-              <div className="spacer" />
-              <button className="btn primary" onClick={() => doExport("xlsx")} disabled={exporting}>
-                {exporting ? "作成中…" : "Excelダウンロード"}
-              </button>
-              <button className="btn" onClick={() => doExport("csv")}>
-                CSVダウンロード
-              </button>
-            </div>
-            {(view === "both" || view === "chart") && <ReportChart result={result} levels={applied.levels} metric={metric} />}
-            {(view === "both" || view === "table") && (
-              <>
-                <ReportTable title={result.total.label} cells={result.total.cells} columns={result.columns} levels={applied.levels} />
-                {result.groups.map((g) => (
-                  <ReportTable key={g.key} title={g.label} cells={g.cells} columns={result.columns} levels={applied.levels} />
-                ))}
-              </>
-            )}
-            {view === "detail" && <DetailTable result={result} isDemo={isDemo} />}
-          </section>
-        )}
-      </main>
+              {view === "detail" && <DetailTable result={result} isDemo={isDemo} />}
+            </section>
+          )}
+        </main>
+      </div>
     </div>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
   );
 }
 
