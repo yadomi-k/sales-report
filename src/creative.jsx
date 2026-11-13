@@ -171,7 +171,7 @@ function CrDashboard({ r }) {
   );
 
   const kpis = [{ key: "all", label: r.sections.map((s) => s.label).join("/") + "成績予測", amount: r.total.amount, target: r.total.target, strong: true }].concat(
-    r.sections.map((s) => ({ key: s.key, label: s.label + "成績予測", amount: s.amount, target: s.target }))
+    r.sections.filter((s) => s.amount || s.target).map((s) => ({ key: s.key, label: s.label + "成績予測", amount: s.amount, target: s.target }))
   );
 
   return (
@@ -245,7 +245,8 @@ function crTableModel(r) {
       },
       { amount: 0, target: 0 }
     );
-  const blocks = [{ label: "合計", monthly: r.monthly }].concat(r.sections.map((s) => ({ label: s.label, monthly: s.monthly })));
+  // 絞り込みで数字がなくなった課（SD・GD）は出さない
+  const blocks = [{ label: "合計", monthly: r.monthly }].concat(r.sections.filter((s) => s.amount || s.target).map((s) => ({ label: s.label, monthly: s.monthly })));
   return {
     cols,
     blocks: blocks.map((b) => ({ label: b.label, cells: cols.map((col) => sumOf(b.monthly, col)) })),
@@ -280,13 +281,15 @@ function CrPeopleTable({ r }) {
       {head}
       <th className="sticky c3 label">目標金額</th>
       {cells.map((x, i) => (
-        <td key={i}>{crYen(x.target)}</td>
+        <td key={i} className={"k-" + t.cols[i].kind}>
+          {crYen(x.target)}
+        </td>
       ))}
     </tr>,
     <tr key={key + ":a"} className={cls}>
       <th className="sticky c3 label">金額</th>
       {cells.map((x, i) => (
-        <td key={i} className={"sales" + (x.target && x.amount < x.target ? " red" : "")}>
+        <td key={i} className={"sales k-" + t.cols[i].kind + (x.target && x.amount < x.target ? " red" : "")}>
           {crYen(x.amount)}
         </td>
       ))}
@@ -388,9 +391,10 @@ function CrTable({ r }) {
                   )}
                   <th className={"sticky c2 label" + (row === "目標" ? " target" : "")}>{row}</th>
                   {b.cells.map((x, i) => {
-                    if (row === "目標") return <td key={i}>{crYen(x.target)}</td>;
-                    if (row === "金額") return <td key={i} className={"sales" + (x.target && x.amount < x.target ? " red" : "")}>{crYen(x.amount)}</td>;
-                    return <td key={i}>{crPct(x.amount, x.target)}</td>;
+                    const k = " k-" + t.cols[i].kind;
+                    if (row === "目標") return <td key={i} className={k}>{crYen(x.target)}</td>;
+                    if (row === "金額") return <td key={i} className={"sales" + k + (x.target && x.amount < x.target ? " red" : "")}>{crYen(x.amount)}</td>;
+                    return <td key={i} className={k}>{crPct(x.amount, x.target)}</td>;
                   })}
                 </tr>
               ))
@@ -455,6 +459,7 @@ function crExportExcel(r) {
   const thin = { style: "thin", color: { argb: "FFB7B7B7" } };
   const border = { top: thin, left: thin, bottom: thin, right: thin };
   const head = { month: "FFA4C2F4", quarter: "FFD5A6F5", half: "FFB4A7D6", total: "FF5B3F86" };
+  const SUM_FILL = { quarter: "FFF1E8FD", half: "FFE9E4F6", total: "FFE0D9F2" }; // 集計列の数字のセル
   ws.getCell(1, 1).value = "VISORA クリエイティブ売上（" + r.periodLabel + "）出力日時 " + new Date().toLocaleString("ja-JP");
   ws.getCell(1, 1).font = { bold: true, size: 13 };
   const t = crTableModel(r);
@@ -485,14 +490,17 @@ function crExportExcel(r) {
       b.cells.forEach((x, i) => {
         const cell = ws.getCell(row + k, 3 + i);
         cell.border = border;
+        const kind = t.cols[i].kind;
+        if (kind !== "month") cell.fill = fill(SUM_FILL[kind]);
+        if (kind === "total") cell.font = { bold: true };
         if (k === 0) {
           cell.value = x.target;
           cell.numFmt = "#,##0";
-          cell.fill = fill("FFFFFF99");
+          cell.fill = fill(kind === "month" ? "FFFFFF99" : "FFFBEEA0");
         } else if (k === 1) {
           cell.value = x.amount;
           cell.numFmt = "#,##0";
-          cell.fill = fill("FFDCE6F8");
+          if (kind === "month") cell.fill = fill("FFDCE6F8");
           if (x.target && x.amount < x.target) cell.font = { color: { argb: "FFE00000" } };
         } else {
           cell.value = x.target ? x.amount / x.target : null;
@@ -537,6 +545,11 @@ function crExportExcel(r) {
       if (style) cell.fill = fill(style);
     }
     cells.forEach((x, i) => {
+      const kind = pm.cols[i].kind;
+      if (kind !== "month" && !style) {
+        ps.getCell(pr, 4 + i).fill = fill(SUM_FILL[kind]);
+        ps.getCell(pr + 1, 4 + i).fill = fill(SUM_FILL[kind]);
+      }
       const tc = ps.getCell(pr, 4 + i);
       tc.value = x.target;
       tc.numFmt = "#,##0";
@@ -580,12 +593,11 @@ function crExportExcel(r) {
 
 function crDefaultFilters() {
   const y = new Date().getFullYear();
-  return { fromYM: y + "-01", toYM: y + "-12", sections: [], team: "", owner: "", quarter: true, half: true };
+  return { fromYM: y + "-01", toYM: y + "-12", dept: "", sectionName: "", team: "", owner: "", quarter: true, half: true };
 }
 
 function CreativeSidebar({ draft, setDraft, choices, onSearch, onClear, onClose, loading, dirty }) {
   const set = (patch) => setDraft(Object.assign({}, draft, patch));
-  const secAll = AppConfig.creative.sections.map((x) => x.key);
   const y = new Date().getFullYear();
   const now = new Date();
   const thisYM = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
@@ -635,12 +647,30 @@ function CreativeSidebar({ draft, setDraft, choices, onSearch, onClear, onClose,
         </label>
       </SidebarSection>
 
-      <SidebarSection id="cr-section" title="課" active={draft.sections.join("・")}>
-        <ChipChoices all={secAll} selected={draft.sections} onChange={(v) => set({ sections: v, team: "", owner: "" })} />
-      </SidebarSection>
-
-      <SidebarSection id="cr-org" title="チーム・担当者" active={draft.owner ? ownerName(draft.owner) : draft.team}>
+      <SidebarSection
+        id="cr-org"
+        title="部署・担当者"
+        active={draft.owner ? ownerName(draft.owner) : [draft.dept, draft.sectionName, draft.team].filter(Boolean).join(" / ")}
+      >
         <div className="stack">
+          <label className="mini-field">
+            <span>部</span>
+            <select id="cr-dept" value={draft.dept} onChange={(e) => set({ dept: e.target.value, sectionName: "", team: "", owner: "" })}>
+              <option value="">すべて</option>
+              {(choices.depts || []).map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label className="mini-field">
+            <span>課</span>
+            <select id="cr-sectionName" value={draft.sectionName} onChange={(e) => set({ sectionName: e.target.value, team: "", owner: "" })}>
+              <option value="">すべて</option>
+              {(choices.sectionNames || []).map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </label>
           <label className="mini-field">
             <span>チーム</span>
             <select id="cr-team" value={draft.team} onChange={(e) => set({ team: e.target.value, owner: "" })}>
@@ -661,7 +691,7 @@ function CreativeSidebar({ draft, setDraft, choices, onSearch, onClear, onClose,
               ))}
             </select>
           </label>
-          <div className="sidebar-hint">チームは当時のチーム（空欄の場合は今のチーム）で絞り込みます。</div>
+          <div className="sidebar-hint">部・課・チームは、プロジェクトの当時の所属（空欄の場合は担当者の今の所属）で絞り込みます。</div>
         </div>
       </SidebarSection>
 
@@ -738,7 +768,10 @@ function CreativePage({ mode, active }) {
     return res;
   }, [data, applied]);
   // 絞り込みの選択肢（チーム・担当者）は、今サイドバーで選んでいる課・チームに合わせる
-  const choices = useMemo(() => (data ? AppCreative.build(data, Object.assign({}, applied, { sections: draft.sections, team: draft.team, owner: "" })) : {}), [data, applied, draft.sections, draft.team]);
+  const choices = useMemo(
+    () => (data ? AppCreative.build(data, Object.assign({}, applied, { dept: draft.dept, sectionName: draft.sectionName, team: draft.team, owner: "" })) : {}),
+    [data, applied, draft.dept, draft.sectionName, draft.team]
+  );
 
   const isDesktop = () => window.matchMedia && window.matchMedia("(min-width: 860px)").matches;
   const toggleSidebar = () => {
@@ -765,7 +798,8 @@ function CreativePage({ mode, active }) {
   const chips = [];
   if (r) {
     chips.push(r.fullYear ? r.periodLabel + "（" + r.fromYM.slice(0, 4) + "年）" : r.periodLabel);
-    if (applied.sections.length) chips.push(applied.sections.join("・"));
+    const org = [applied.dept, applied.sectionName].filter(Boolean).join(" / ");
+    if (org && !applied.owner && !applied.team) chips.push(org);
     if (applied.owner) chips.push(((choices.ownerChoices || []).find((u) => u.id === applied.owner) || {}).name || "担当者");
     else if (applied.team) chips.push(applied.team);
   }

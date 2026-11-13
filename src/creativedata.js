@@ -169,7 +169,7 @@ window.AppCreative = (function () {
 
   // ---------------------------------------------------------------
   // 集計
-  // f: { fromYM, toYM, sections: [] (空=すべて), team, owner }
+  // f: { fromYM, toYM, dept, sectionName, team, owner }（空欄はすべて）
   // ---------------------------------------------------------------
   function sectionKeyOf(org) {
     var s = norm(org && org.section);
@@ -197,34 +197,51 @@ window.AppCreative = (function () {
     var months = [];
     for (var ym = f.fromYM; ym <= f.toYM && months.length < 240; ym = AppAgg.ymAdd(ym, 1)) months.push(ym);
 
-    // 対象：設定の課（SD・GDなど）に属するレコードだけ
-    var inScope = data.records
-      .map(function (x) {
-        var org = orgOf(x);
-        return Object.assign({}, x, { owner: who(x.ownerId), orgNow: org, section: sectionKeyOf(org) });
-      })
-      .filter(function (x) {
-        return !!x.section;
-      });
-    // 絞り込みの選択肢（チーム・担当者）は、絞り込み前のデータから作る
-    var teams = Array.from(
-      new Set(
-        inScope
-          .filter(function (x) {
-            return !f.sections || !f.sections.length || f.sections.indexOf(x.section) >= 0;
-          })
-          .map(function (x) {
-            return x.orgNow.team;
-          })
-          .filter(Boolean)
-      )
-    ).sort(function (a, b) {
-      return a.localeCompare(b, "ja");
+    // すべてのレコードに所属（当時 → なければ今）と、SD・GDの区分を付ける
+    var inScope = data.records.map(function (x) {
+      var org = orgOf(x);
+      return Object.assign({}, x, { owner: who(x.ownerId), orgNow: org, section: sectionKeyOf(org), sectionName: org.section || "（課未設定）" });
     });
+    var sortJa = function (a, b) {
+      return String(a).localeCompare(String(b), "ja");
+    };
+    var uniq = function (list) {
+      return Array.from(new Set(list.filter(Boolean))).sort(sortJa);
+    };
+    var deptOk = function (x) {
+      return !f.dept || norm(x.orgNow.dept) === norm(f.dept);
+    };
+    var secOk = function (x) {
+      if (f.sectionName && norm(x.orgNow.section) !== norm(f.sectionName)) return false;
+      if (f.sections && f.sections.length && f.sections.indexOf(x.section) < 0) return false;
+      return true;
+    };
+    var teamOk = function (x) {
+      return !f.team || x.orgNow.team === f.team;
+    };
+    // 絞り込みの選択肢：部 → 課 → チーム → 担当者 の順に、上の条件に合うものだけ
+    var depts = uniq(
+      inScope.map(function (x) {
+        return x.orgNow.dept;
+      })
+    );
+    var sectionNames = uniq(
+      inScope.filter(deptOk).map(function (x) {
+        return x.orgNow.section;
+      })
+    );
+    var teams = uniq(
+      inScope
+        .filter(function (x) {
+          return deptOk(x) && secOk(x);
+        })
+        .map(function (x) {
+          return x.orgNow.team;
+        })
+    );
     var ownerMap = {};
     inScope.forEach(function (x) {
-      if (f.sections && f.sections.length && f.sections.indexOf(x.section) < 0) return;
-      if (f.team && x.orgNow.team !== f.team) return;
+      if (!deptOk(x) || !secOk(x) || !teamOk(x)) return;
       ownerMap[x.ownerId] = { id: x.ownerId, name: x.owner.name, team: x.orgNow.team || "" };
     });
     var ownerChoices = Object.keys(ownerMap)
@@ -236,8 +253,7 @@ window.AppCreative = (function () {
       });
 
     var rows = inScope.filter(function (x) {
-      if (f.sections && f.sections.length && f.sections.indexOf(x.section) < 0) return false;
-      if (f.team && x.orgNow.team !== f.team) return false;
+      if (!deptOk(x) || !secOk(x) || !teamOk(x)) return false;
       if (f.owner && x.ownerId !== f.owner) return false;
       return true;
     });
@@ -257,14 +273,16 @@ window.AppCreative = (function () {
     rows.forEach(function (x) {
       var i = months.indexOf(x.ym);
       if (i < 0) return;
-      var sec = bySection[x.section];
+      var sec = bySection[x.section]; // SD・GDなど（設定の課）。それ以外の課は合計にだけ入る
       monthly[i].amount += x.amount;
       monthly[i].target += x.target;
-      sec.amount += x.amount;
-      sec.target += x.target;
-      sec.monthly[i].amount += x.amount;
-      sec.monthly[i].target += x.target;
-      var pk = x.ownerId + "|" + (x.orgNow.team || "");
+      if (sec) {
+        sec.amount += x.amount;
+        sec.target += x.target;
+        sec.monthly[i].amount += x.amount;
+        sec.monthly[i].target += x.target;
+      }
+      var pk = x.ownerId + "|" + x.sectionName + "|" + (x.orgNow.team || "");
       var pp =
         people[pk] ||
         (people[pk] = {
@@ -272,6 +290,7 @@ window.AppCreative = (function () {
           name: x.owner.name,
           team: x.orgNow.team || "（チーム未設定）",
           section: x.section,
+          sectionName: x.sectionName,
           monthly: months.map(function () {
             return { amount: 0, target: 0 };
           }),
@@ -293,12 +312,17 @@ window.AppCreative = (function () {
     var secOrder = c.sections.map(function (x) {
       return x.key;
     });
+    // 並び順：SD・GD（設定の順）→ それ以外の課
+    var secRank = function (k) {
+      var i = secOrder.indexOf(k);
+      return i < 0 ? secOrder.length : i;
+    };
     var ownerList = Object.keys(owners)
       .map(function (k) {
         return owners[k];
       })
       .sort(function (a, b) {
-        return secOrder.indexOf(a.section) - secOrder.indexOf(b.section) || a.team.localeCompare(b.team, "ja") || b.amount - a.amount;
+        return secRank(a.section) - secRank(b.section) || a.team.localeCompare(b.team, "ja") || b.amount - a.amount;
       });
     details.sort(function (a, b) {
       return a.date < b.date ? -1 : a.date > b.date ? 1 : a.name.localeCompare(b.name, "ja");
@@ -310,11 +334,11 @@ window.AppCreative = (function () {
         return people[k];
       })
       .sort(function (a, b) {
-        return secOrder.indexOf(a.section) - secOrder.indexOf(b.section) || a.team.localeCompare(b.team, "ja") || a.name.localeCompare(b.name, "ja");
+        return secRank(a.section) - secRank(b.section) || a.sectionName.localeCompare(b.sectionName, "ja") || a.team.localeCompare(b.team, "ja") || a.name.localeCompare(b.name, "ja");
       })
       .forEach(function (p) {
         var last = teamsOrdered[teamsOrdered.length - 1];
-        if (!last || last.team !== p.team || last.section !== p.section) teamsOrdered.push((last = { team: p.team, section: p.section, people: [] }));
+        if (!last || last.team !== p.team || last.sectionName !== p.sectionName) teamsOrdered.push((last = { team: p.team, section: p.sectionName, sectionName: p.sectionName, people: [] }));
         last.people.push(p);
       });
     teamsOrdered.forEach(function (t) {
@@ -353,6 +377,8 @@ window.AppCreative = (function () {
       resultMonthly: resultMonthly,
       owners: ownerList,
       details: details,
+      depts: depts,
+      sectionNames: sectionNames,
       teams: teams,
       ownerChoices: ownerChoices,
     };

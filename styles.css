@@ -1089,3 +1089,49 @@ table.report.people tr.r-total th.label {
   color: var(--color-text);
   font-weight: 700;
 }
+
+/* 集計列（四半期合計・半期計・合計）の数字のセルにも色を付ける（下にスクロールしても分かるように） */
+:root {
+  --k-quarter: #f3ecfd;
+  --k-half: #ece8f7;
+  --k-total: #e4def4;
+  --k-target: #fbeea0;
+  --k-line: #c9b8ee;
+}
+table.report td.k-quarter,
+table.report td.sales.k-quarter {
+  background: var(--k-quarter);
+}
+table.report td.k-half,
+table.report td.sales.k-half {
+  background: var(--k-half);
+}
+table.report td.k-total,
+table.report td.sales.k-total {
+  background: var(--k-total);
+  font-weight: 700;
+}
+table.report tr.r-target td.k-quarter,
+table.report tr.r-target td.k-half,
+table.report tr.r-target td.k-total {
+  background: var(--k-target);
+}
+/* 集計列の左右に線を入れて、月の列と区切る */
+table.report td.k-quarter.col-start,
+table.report td.k-half.col-start,
+table.report td.k-total.col-start,
+table.report:not(:has(td.col-start)) td.k-quarter,
+table.report:not(:has(td.col-start)) td.k-half,
+table.report:not(:has(td.col-start)) td.k-total {
+  border-left: 2px solid var(--k-line);
+}
+table.report.people tr.r-subtotal td.k-quarter,
+table.report.people tr.r-subtotal td.k-half,
+table.report.people tr.r-subtotal td.k-total {
+  background: #dde3f3;
+}
+table.report.people tr.r-total td.k-quarter,
+table.report.people tr.r-total td.k-half,
+table.report.people tr.r-total td.k-total {
+  background: var(--k-target);
+}

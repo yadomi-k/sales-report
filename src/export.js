@@ -8,6 +8,8 @@ window.AppExport = (function () {
     half: "FFB4A7D6",
     total: "FF5B3F86",
     target: "FFFFFF99",
+    targetSum: "FFFBEEA0", // 目標の行の集計列
+    sum: { quarter: "FFF1E8FD", half: "FFE9E4F6", total: "FFE0D9F2" }, // 集計列（四半期・半期・合計）の数字のセル
     block: "FF666666",
     label: "FFF3F3F3",
     sales: "FFDCE6F8",
@@ -85,8 +87,11 @@ window.AppExport = (function () {
         x.value = cell.v == null || (cell.kind === "count" && !cell.v) ? null : cell.v;
         x.numFmt = numFmt(cell.kind);
         x.border = BORDER;
-        if (isTarget) x.fill = fill(COLORS.target);
+        var kind = columns[Math.floor(i / 2)].kind;
+        if (isTarget) x.fill = fill(kind === "month" ? COLORS.target : COLORS.targetSum);
+        else if (kind !== "month") x.fill = fill(COLORS.sum[kind]);
         else if (i % 2 === 0) x.fill = fill(COLORS.sales);
+        if (kind === "total") x.font = Object.assign({}, x.font || {}, { bold: true });
         if (cell.red) x.font = { color: { argb: COLORS.red } };
         else if (cell.blue) x.font = { color: { argb: COLORS.blue } };
       });

@@ -105,7 +105,7 @@ function writePref(key, v) {
   } catch (e) {}
 }
 
-const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-section": true, "cr-org": true, "cr-display": true };
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-org": true, "cr-display": true };
 
 function SidebarSection({ id, title, active, children }) {
   const [open, setOpen] = useState(() => {
@@ -520,7 +520,10 @@ function ReportTable({ title, cells, columns, levels }) {
                 )}
                 <th className={"sticky c2 label" + (r.type === "target" ? " target" : "")}>{r.label}</th>
                 {r.cells.map((c, i) => (
-                  <td key={i} className={(i % 2 === 0 ? "sales" : "profit") + (c.red ? " red" : "") + (c.blue ? " blue" : "")}>
+                  <td
+                    key={i}
+                    className={(i % 2 === 0 ? "sales" : "profit") + " k-" + columns[Math.floor(i / 2)].kind + (i % 2 === 0 ? " col-start" : "") + (c.red ? " red" : "") + (c.blue ? " blue" : "")}
+                  >
                     {AppAgg.fmtCell(c)}
                   </td>
                 ))}
