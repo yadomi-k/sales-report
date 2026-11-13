@@ -133,6 +133,88 @@ window.AppExport = (function () {
       r = writeTable(ws, r, g.label, g.cells, result.columns, levels) + 1;
     });
 
+    // 担当者別（部・課・チームで絞り込んだときだけ）
+    if (result.peopleTeams && result.peopleTeams.length) {
+      var ps = wb.addWorksheet("担当者別", { views: [{ state: "frozen", xSplit: 3, ySplit: 3 }] });
+      ps.getColumn(1).width = 18;
+      ps.getColumn(2).width = 16;
+      ps.getColumn(3).width = 14;
+      ps.getCell(1, 1).value = "担当者別";
+      ps.getCell(1, 1).font = { bold: true, size: 12 };
+      ["チーム", "担当者", ""].forEach(function (v, i) {
+        ps.mergeCells(2, 1 + i, 3, 1 + i);
+        var h = ps.getCell(2, 1 + i);
+        h.value = v;
+        h.font = { bold: true };
+        h.border = BORDER;
+      });
+      result.columns.forEach(function (col, i) {
+        var c = 4 + i * 2;
+        ps.getColumn(c).width = 14;
+        ps.getColumn(c + 1).width = 14;
+        ps.mergeCells(2, c, 2, c + 1);
+        var h = ps.getCell(2, c);
+        h.value = col.label;
+        h.fill = fill(COLORS[col.kind]);
+        h.font = { bold: true, color: { argb: col.kind === "total" ? "FFFFFFFF" : "FF000000" } };
+        h.alignment = { horizontal: "center" };
+        ["売上", "利益"].forEach(function (t, j) {
+          var sc = ps.getCell(3, c + j);
+          sc.value = t;
+          sc.alignment = { horizontal: "center" };
+          sc.border = BORDER;
+        });
+      });
+      var lowest = AppAgg.LEVELS.filter(function (l) {
+        return levels.indexOf(l) >= 0;
+      }).pop();
+      var prow = [
+        { label: "目標", get: function (c) { return c.target; }, target: true },
+        { label: "受注", get: function (c) { return c.cum["受注"]; }, red: true },
+      ];
+      if (lowest && lowest !== "受注") prow.push({ label: "積上（" + lowest + "まで）", get: function (c) { return c.cum[lowest]; }, red: true });
+      prow.push({ label: "受注達成率", rate: true });
+      var pr = 4;
+      var putPerson = function (team, name, cells, style) {
+        prow.forEach(function (row, k) {
+          ps.getCell(pr + k, 1).value = k === 0 ? team : "";
+          ps.getCell(pr + k, 2).value = k === 0 ? name : "";
+          ps.getCell(pr + k, 3).value = row.label;
+          for (var cc = 1; cc <= 3 + cells.length * 2; cc++) {
+            ps.getCell(pr + k, cc).border = BORDER;
+            if (style) ps.getCell(pr + k, cc).fill = fill(style);
+          }
+          cells.forEach(function (c, i) {
+            var kind = result.columns[i].kind;
+            [0, 1].forEach(function (j) {
+              var cell = ps.getCell(pr + k, 4 + i * 2 + j);
+              var key = j === 0 ? "amount" : "profit";
+              if (row.rate) {
+                cell.value = c.target[key] ? c.cum["受注"][key] / c.target[key] : null;
+                cell.numFmt = "0.0%";
+              } else {
+                var v = row.get(c)[key];
+                cell.value = v;
+                cell.numFmt = "#,##0";
+                if (row.red && c.target[key] && v < c.target[key]) cell.font = { color: { argb: COLORS.red } };
+              }
+              if (!style) {
+                if (row.target) cell.fill = fill(kind === "month" ? COLORS.target : COLORS.targetSum);
+                else if (kind !== "month") cell.fill = fill(COLORS.sum[kind]);
+              }
+            });
+          });
+        });
+        pr += prow.length;
+      };
+      result.peopleTeams.forEach(function (team) {
+        team.people.forEach(function (p) {
+          putPerson(team.label, p.user.name + (p.user.title ? "（" + p.user.title + "）" : ""), p.cells);
+        });
+        putPerson(team.label, "小計", team.subtotal, "FFEEF3FB");
+      });
+    }
+
     var ds = wb.addWorksheet("明細", { views: [{ state: "frozen", ySplit: 1 }] });
     ds.columns = [
       { header: "売上日", key: "date", width: 12 },

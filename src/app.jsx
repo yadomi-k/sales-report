@@ -485,6 +485,119 @@ function ReportChart({ result, levels, metric }) {
 // ---------------------------------------------------------------
 // 表
 // ---------------------------------------------------------------
+// 担当者別（部・課・チームで絞り込んだとき）：チーム → 担当者。1人ごとに 目標／受注／積上／達成率、列は月ごとの売上・利益
+function salesPeopleRows(levels) {
+  const lowest = LEVELS.filter((l) => levels.indexOf(l) >= 0).pop();
+  const rows = [
+    { key: "target", label: "目標", get: (c) => c.target, cls: "r-target-row" },
+    { key: "won", label: "受注", get: (c) => c.cum["受注"], red: true },
+  ];
+  if (lowest && lowest !== "受注") rows.push({ key: "cum", label: "積上（" + lowest + "まで）", get: (c) => c.cum[lowest], red: true });
+  rows.push({ key: "rate", label: "受注達成率", rate: true });
+  return rows;
+}
+
+function SalesPeopleTable({ teams, columns, levels }) {
+  const rows = salesPeopleRows(levels);
+  const pct = (a, b) => (b ? ((a / b) * 100).toFixed(1) + "%" : "");
+  const yen = (v) => Math.round(v || 0).toLocaleString("ja-JP");
+  const cellsFor = (cells, row) =>
+    cells.flatMap((c, i) => {
+      const kind = " k-" + columns[i].kind;
+      if (row.rate)
+        return [
+          <td key={i + "a"} className={"col-start" + kind}>
+            {pct(c.cum["受注"].amount, c.target.amount)}
+          </td>,
+          <td key={i + "p"} className={kind}>
+            {pct(c.cum["受注"].profit, c.target.profit)}
+          </td>,
+        ];
+      const v = row.get(c);
+      const t = c.target;
+      return [
+        <td key={i + "a"} className={"sales col-start" + kind + (row.red && t.amount && v.amount < t.amount ? " red" : "")}>
+          {yen(v.amount)}
+        </td>,
+        <td key={i + "p"} className={kind + (row.red && t.profit && v.profit < t.profit ? " red" : "")}>
+          {yen(v.profit)}
+        </td>,
+      ];
+    });
+  const block = (key, head, cells, cls) =>
+    rows.map((row, k) => (
+      <tr key={key + row.key} className={(k === 0 ? "block-first " : "") + (row.key === "target" ? "r-target " : "") + (cls || "")}>
+        {k === 0 && head}
+        <th className={"sticky c3 label" + (row.key === "target" ? " target" : "")}>{row.label}</th>
+        {cellsFor(cells, row)}
+      </tr>
+    ));
+  const n = rows.length;
+  return (
+    <div className="table-block">
+      <div className="table-title">担当者別</div>
+      <div className="table-scroll">
+        <table className="report people">
+          <thead>
+            <tr>
+              <th className="sticky c1w blank" rowSpan={2}>
+                チーム
+              </th>
+              <th className="sticky c2w blank" rowSpan={2}>
+                担当者
+              </th>
+              <th className="sticky c3 blank" rowSpan={2}></th>
+              {columns.map((c) => (
+                <th key={c.key} colSpan={2} className={"h-" + c.kind}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {columns.map((c) => (
+                <React.Fragment key={c.key}>
+                  <th className="sub">売上</th>
+                  <th className="sub">利益</th>
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {teams.map((team) => [
+              ...team.people.flatMap((p, i) =>
+                block(
+                  team.label + p.user.id,
+                  <>
+                    {i === 0 && (
+                      <th className="sticky c1w team-cell" rowSpan={(team.people.length + 1) * n}>
+                        {team.team}
+                        <span className="team-sec">{team.sub}</span>
+                      </th>
+                    )}
+                    <th className="sticky c2w person" rowSpan={n}>
+                      {p.user.name}
+                      {p.user.title && <span className="person-title">{p.user.title}</span>}
+                    </th>
+                  </>,
+                  p.cells
+                )
+              ),
+              ...block(
+                team.label + "小計",
+                <th className="sticky c2w person subtotal" rowSpan={n}>
+                  小計
+                </th>,
+                team.subtotal,
+                "r-subtotal"
+              ),
+            ])}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ReportTable({ title, cells, columns, levels }) {
   const rows = AppAgg.tableRows(cells, levels);
   return (
@@ -905,6 +1018,11 @@ function SalesPage({ mode, active }) {
                   {result.groups.map((g) => (
                     <ReportTable key={g.key} title={g.label} cells={g.cells} columns={result.columns} levels={applied.levels} />
                   ))}
+                  {result.peopleTeams ? (
+                    result.peopleTeams.length > 0 && <SalesPeopleTable teams={result.peopleTeams} columns={result.columns} levels={applied.levels} />
+                  ) : (
+                    <div className="table-block muted small">部・課・チーム（または本部）を選んで検索すると、その中の担当者別の数字も表示します。</div>
+                  )}
                 </>
               )}
               {view === "detail" && <DetailTable result={result} isDemo={isDemo} />}

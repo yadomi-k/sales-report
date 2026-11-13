@@ -339,7 +339,52 @@ window.AppAgg = (function () {
     var details = fd.splits.slice().sort(function (a, b) {
       return a.salesDate < b.salesDate ? -1 : a.salesDate > b.salesDate ? 1 : a.oppName.localeCompare(b.oppName, "ja");
     });
-    return { columns: columns, total: total, groups: groups, details: details, aff: fd.aff, groupLabel: GROUP_LABELS[view.groupBy] || "" };
+    // 担当者別：部・課・チーム（または本部）で絞り込んだときだけ作る。チームごとに担当者を並べる
+    var peopleTeams = null;
+    if (filters.honbu || filters.dept || filters.section || filters.team) {
+      var pmap = {};
+      var pget = function (userId, date) {
+        var u = fd.aff(userId, date);
+        return pmap[u.id] || (pmap[u.id] = { user: u, splits: [], targets: [] });
+      };
+      fd.splits.forEach(function (sp) {
+        pget(sp.ownerId, sp.salesDate).splits.push(sp);
+      });
+      fd.targets.forEach(function (t) {
+        pget(t.ownerId, t.ym + "-01").targets.push(t);
+      });
+      var plist = Object.keys(pmap)
+        .map(function (k) {
+          return pmap[k];
+        })
+        .sort(function (a, b) {
+          var ua = a.user, ub = b.user;
+          return (
+            orgRank(ua.honbu) - orgRank(ub.honbu) ||
+            orgRank(ua.dept) - orgRank(ub.dept) ||
+            orgRank(ua.section) - orgRank(ub.section) ||
+            String(ua.section || "").localeCompare(String(ub.section || ""), "ja") ||
+            String(ua.team || "").localeCompare(String(ub.team || ""), "ja") ||
+            comparePeople(ua, ub)
+          );
+        });
+      peopleTeams = [];
+      plist.forEach(function (p) {
+        var u = p.user;
+        var label = [u.dept, u.section, u.team || "（チーム未設定）"].filter(Boolean).join(" / ");
+        var last = peopleTeams[peopleTeams.length - 1];
+        if (!last || last.label !== label) peopleTeams.push((last = { label: label, team: u.team || "（チーム未設定）", sub: [u.dept, u.section].filter(Boolean).join(" / "), people: [], splits: [], targets: [] }));
+        last.people.push({ user: u, cells: computeTable(p.splits, p.targets, columns) });
+        last.splits = last.splits.concat(p.splits);
+        last.targets = last.targets.concat(p.targets);
+      });
+      peopleTeams.forEach(function (t) {
+        t.subtotal = computeTable(t.splits, t.targets, columns);
+        delete t.splits;
+        delete t.targets;
+      });
+    }
+    return { columns: columns, total: total, groups: groups, details: details, aff: fd.aff, groupLabel: GROUP_LABELS[view.groupBy] || "", peopleTeams: peopleTeams };
   }
 
   function totalLabel(f, aff) {
