@@ -5,7 +5,7 @@
 | タブ | 内容 | 見られる人 |
 |---|---|---|
 | **Sales** | 商談分割をもとにした、本部・部・課・チーム・担当者ごとの売上／利益の実績と目標 | ログインできる人全員 |
-| **Creative** | プロジェクト管理（Creative_Achievements__c）をもとにした、クリエイティブ部の売上ダッシュボード | **プロジェクト管理の金額を参照できる人だけ**（手順は [docs/permissions.md](docs/permissions.md)） |
+| **Creative** | プロジェクト管理（Creative_Achievements__c）をもとにした、クリエイティブ部の売上（ダッシュボード・課別の表・担当者別の表・明細）。期間は月単位で指定でき、所属はレコードの当時の部・課・チームで集計 | **プロジェクト管理の金額を参照できる人だけ**（手順は [docs/permissions.md](docs/permissions.md)） |
 
 - Salesforceのデータは**読み取るだけ**です。商談オブジェクトの変更、Apex・LWC・Visualforceは使いません。
 - CaseShelfとは別のアプリです。ログインの仕組みはCaseShelfと同じ「Salesforceでログイン」（専用の接続アプリケーション + PKCE。サーバー不要）です。

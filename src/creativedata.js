@@ -56,8 +56,13 @@ window.AppCreative = (function () {
     return !!field && (!visibleFields || visibleFields.indexOf(field) >= 0);
   }
 
-  function load(year, mode) {
-    if (mode === "demo") return demoLoad(year);
+  // 期間（"YYYY-MM"〜"YYYY-MM"）のデータを読み込む
+  function lastDay(ym) {
+    var p = ym.split("-").map(Number);
+    return ym + "-" + pad2(new Date(p[0], p[1], 0).getDate());
+  }
+  function load(fromYM, toYM, mode) {
+    if (mode === "demo") return demoLoad(fromYM, toYM);
     var c = cfg();
     var at = c.atTheTime || {};
     var fields = ["Id", "Name", "OwnerId", "RecordTypeId", c.dateField];
@@ -68,7 +73,7 @@ window.AppCreative = (function () {
     var rts = [c.actualRecordTypeId, c.targetRecordTypeId].filter(Boolean).map(AppSSO.soqlString);
     var soql =
       "SELECT " + fields.join(", ") + " FROM " + c.object +
-      " WHERE " + c.dateField + " >= " + year + "-01-01 AND " + c.dateField + " <= " + year + "-12-31" +
+      " WHERE " + c.dateField + " >= " + fromYM + "-01 AND " + c.dateField + " <= " + lastDay(toYM) +
       (rts.length ? " AND RecordTypeId IN (" + rts.join(", ") + ")" : "");
     var get = function (x, f) {
       return f && fields.indexOf(f) >= 0 ? x[f] : null;
@@ -101,10 +106,18 @@ window.AppCreative = (function () {
   // デモデータ（クリエイティブ部の担当者の、架空のプロジェクト）
   // ---------------------------------------------------------------
   var demoCache = {};
-  function demoLoad(year) {
+  function demoLoad(fromYM, toYM) {
     return AppDemo.loadUsers().then(function (users) {
-      if (!demoCache[year]) demoCache[year] = demoBuild(users, year);
-      return { users: users, records: demoCache[year] };
+      var records = [];
+      for (var y = Number(fromYM.slice(0, 4)); y <= Number(toYM.slice(0, 4)); y++) {
+        if (!demoCache[y]) demoCache[y] = demoBuild(users, y);
+        records = records.concat(
+          demoCache[y].filter(function (x) {
+            return x.ym >= fromYM && x.ym <= toYM;
+          })
+        );
+      }
+      return { users: users, records: records };
     });
   }
   function demoBuild(users, year) {
@@ -156,7 +169,7 @@ window.AppCreative = (function () {
 
   // ---------------------------------------------------------------
   // 集計
-  // f: { year, sections: [] (空=すべて), team, owner }
+  // f: { fromYM, toYM, sections: [] (空=すべて), team, owner }
   // ---------------------------------------------------------------
   function sectionKeyOf(org) {
     var s = norm(org && org.section);
@@ -182,7 +195,7 @@ window.AppCreative = (function () {
       return { dept: u.dept, section: u.section, team: u.team };
     };
     var months = [];
-    for (var m = 1; m <= 12; m++) months.push(f.year + "-" + pad2(m));
+    for (var ym = f.fromYM; ym <= f.toYM && months.length < 240; ym = AppAgg.ymAdd(ym, 1)) months.push(ym);
 
     // 対象：設定の課（SD・GDなど）に属するレコードだけ
     var inScope = data.records
@@ -239,6 +252,7 @@ window.AppCreative = (function () {
     var results = {};
     var resultMonthly = {};
     var owners = {};
+    var people = {}; // 担当者×チームごとの月別の目標・金額（表の「担当者別」に使う）
     var details = [];
     rows.forEach(function (x) {
       var i = months.indexOf(x.ym);
@@ -250,6 +264,20 @@ window.AppCreative = (function () {
       sec.target += x.target;
       sec.monthly[i].amount += x.amount;
       sec.monthly[i].target += x.target;
+      var pk = x.ownerId + "|" + (x.orgNow.team || "");
+      var pp =
+        people[pk] ||
+        (people[pk] = {
+          id: x.ownerId,
+          name: x.owner.name,
+          team: x.orgNow.team || "（チーム未設定）",
+          section: x.section,
+          monthly: months.map(function () {
+            return { amount: 0, target: 0 };
+          }),
+        });
+      pp.monthly[i].amount += x.amount;
+      pp.monthly[i].target += x.target;
       if (x.isTarget) return;
       monthly[i].count += 1;
       if (x.result) {
@@ -275,16 +303,47 @@ window.AppCreative = (function () {
     details.sort(function (a, b) {
       return a.date < b.date ? -1 : a.date > b.date ? 1 : a.name.localeCompare(b.name, "ja");
     });
+    // 担当者別：課 → チーム → 名前 の順にまとめる
+    var teamsOrdered = [];
+    Object.keys(people)
+      .map(function (k) {
+        return people[k];
+      })
+      .sort(function (a, b) {
+        return secOrder.indexOf(a.section) - secOrder.indexOf(b.section) || a.team.localeCompare(b.team, "ja") || a.name.localeCompare(b.name, "ja");
+      })
+      .forEach(function (p) {
+        var last = teamsOrdered[teamsOrdered.length - 1];
+        if (!last || last.team !== p.team || last.section !== p.section) teamsOrdered.push((last = { team: p.team, section: p.section, people: [] }));
+        last.people.push(p);
+      });
+    teamsOrdered.forEach(function (t) {
+      t.monthly = months.map(function (_, i) {
+        return t.people.reduce(
+          function (a, p) {
+            return { amount: a.amount + p.monthly[i].amount, target: a.target + p.monthly[i].target };
+          },
+          { amount: 0, target: 0 }
+        );
+      });
+    });
     var total = monthly.reduce(
       function (a, x) {
         return { amount: a.amount + x.amount, target: a.target + x.target, count: a.count + x.count };
       },
       { amount: 0, target: 0, count: 0 }
     );
+    // 期間の名前（1月〜12月ちょうどなら「48期」）
+    var fy = f.fromYM.slice(0, 4);
+    var fullYear = f.fromYM === fy + "-01" && f.toYM === fy + "-12";
+    var periodLabel = fullYear ? Number(fy) - (c.periodOffset || 0) + "期" : f.fromYM.replace("-", "/") + "〜" + f.toYM.replace("-", "/");
     return {
-      year: f.year,
-      period: f.year - (c.periodOffset || 0),
+      fromYM: f.fromYM,
+      toYM: f.toYM,
+      periodLabel: periodLabel,
+      fullYear: fullYear,
       months: months,
+      teamsTable: teamsOrdered,
       monthly: monthly,
       total: total,
       sections: c.sections.map(function (x) {
@@ -299,5 +358,10 @@ window.AppCreative = (function () {
     };
   }
 
-  return { checkAccess: checkAccess, load: load, build: build, sectionKeyOf: sectionKeyOf };
+  // 期の番号 ⇔ 年
+  function periodOf(year) {
+    return year - (cfg().periodOffset || 0);
+  }
+
+  return { checkAccess: checkAccess, load: load, build: build, sectionKeyOf: sectionKeyOf, periodOf: periodOf };
 })();

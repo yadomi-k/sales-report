@@ -105,7 +105,7 @@ function writePref(key, v) {
   } catch (e) {}
 }
 
-const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true };
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-section": true, "cr-org": true, "cr-display": true };
 
 function SidebarSection({ id, title, active, children }) {
   const [open, setOpen] = useState(() => {

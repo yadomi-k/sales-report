@@ -1036,3 +1036,56 @@ table.detail a {
 .cr-scroll {
   overflow-x: auto;
 }
+
+/* Creativeタブ：担当者別の表 */
+table.report.people .c1w {
+  left: 0;
+  min-width: 7.5rem;
+  max-width: 9rem;
+}
+table.report.people .c2w {
+  left: 7.5rem;
+  min-width: 7rem;
+}
+table.report.people .c3 {
+  left: 14.5rem;
+  min-width: 5.5rem;
+}
+table.report.people th.blank {
+  font-size: 0.6875rem;
+  color: var(--color-text-dim);
+  font-weight: 700;
+}
+table.report.people th.team-cell {
+  background: #f7f8fa;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+  font-weight: 700;
+}
+.team-sec {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--color-text-dim);
+}
+table.report.people th.person {
+  background: #fff;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+table.report.people th.person.subtotal,
+table.report.people tr.r-subtotal td,
+table.report.people tr.r-subtotal th.label {
+  background: #eef3fb;
+  color: var(--color-text);
+  font-weight: 700;
+}
+table.report.people th.person.total-cell,
+table.report.people tr.r-total td,
+table.report.people tr.r-total th.label {
+  background: var(--target);
+  color: var(--color-text);
+  font-weight: 700;
+}
