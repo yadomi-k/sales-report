@@ -91,11 +91,21 @@ window.AppConfig = {
   // ※項目のAPI参照名は仮。確認して書き換える
   creative: {
     object: "Creative_Achievements__c",
-    dateField: "RecordedDate__c", // 計上日（月の振り分けに使う）※仮
-    amountField: "Amount__c", // 金額 ※仮
-    targetField: "TargetAmount__c", // 目標金額（ない場合は "" にすると目標を表示しない）※仮
-    resultField: "CompetitionResult__c", // コンペ結果（受注・失注・消滅など。ない場合は ""）※仮
-    // 成績予測を分ける単位。担当者（所有者）のユーザの「課」で判定する
+    // レコードタイプ（商談の目標と同じ構成）
+    targetRecordTypeId: "012Q90000013x6DIAQ", // 目標
+    actualRecordTypeId: "012Q90000013wlFIAQ", // プロジェクト登録
+    dateField: "Recording_date__c", // 計上日（月の振り分けに使う）
+    amountField: "Amount__c", // 金額（プロジェクト登録のレコード）
+    targetField: "Target_Amount__c", // 目標金額（目標のレコード）
+    // コンペ結果の項目（受注・失注・消滅など）。プロジェクト管理にない場合は "" のまま（コンペ結果の欄を出さない）
+    resultField: "",
+    // 当時の部署（レコードに入っていればこちらを優先。空欄なら所有者のユーザの今の部・課・チーム）
+    atTheTime: {
+      department: "Department_at_that_time__c", // 当時の部
+      section: "Department_at_the_time_2__c", // 当時の課
+      team: "Team_at_the_time__c", // 当時のチーム
+    },
+    // 成績予測を分ける単位（課の名前で判定）※課の正式な名前は要確認
     sections: [
       { key: "SD", label: "SD", userSection: "スペースデザイン課" },
       { key: "GD", label: "GD", userSection: "グラフィックデザイン課" },

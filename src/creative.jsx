@@ -310,8 +310,8 @@ function CrDetail({ r, isDemo }) {
               <th>計上日</th>
               <th>プロジェクト</th>
               <th>担当者</th>
-              <th>課</th>
-              <th>チーム</th>
+              <th>課（当時）</th>
+              <th>チーム（当時）</th>
               {c.resultField && <th>コンペ結果</th>}
               <th>金額</th>
             </tr>
@@ -325,7 +325,7 @@ function CrDetail({ r, isDemo }) {
                 </td>
                 <td className="text">{x.owner.name}</td>
                 <td className="text">{x.section}</td>
-                <td className="text">{x.owner.team}</td>
+                <td className="text">{x.orgNow.team}</td>
                 {c.resultField && <td className="text">{x.result}</td>}
                 <td>{crYen(x.amount)}</td>
               </tr>
@@ -399,13 +399,13 @@ function crExportExcel(r) {
     { header: "計上日", key: "date", width: 12 },
     { header: "プロジェクト", key: "name", width: 36 },
     { header: "担当者", key: "owner", width: 14 },
-    { header: "課", key: "section", width: 8 },
-    { header: "チーム", key: "team", width: 14 },
+    { header: "課（当時）", key: "section", width: 10 },
+    { header: "チーム（当時）", key: "team", width: 16 },
   ]
     .concat(c.resultField ? [{ header: "コンペ結果", key: "result", width: 10 }] : [])
     .concat([{ header: "金額", key: "amount", width: 15, style: { numFmt: "#,##0" } }]);
   ds.getRow(1).font = { bold: true };
-  r.details.forEach((x) => ds.addRow({ date: x.date, name: x.name, owner: x.owner.name, section: x.section, team: x.owner.team, result: x.result, amount: x.amount }));
+  r.details.forEach((x) => ds.addRow({ date: x.date, name: x.name, owner: x.owner.name, section: x.section, team: x.orgNow.team, result: x.result, amount: x.amount }));
   return wb.xlsx.writeBuffer().then((buf) => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
