@@ -182,7 +182,14 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
   const teams = uniq(inHonbu.filter((u) => (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section)).map((u) => u.team));
   const owners = inHonbu
     .filter((u) => u.dept && (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section) && (!draft.team || u.team === draft.team))
-    .sort((a, b) => rank(a.dept) - rank(b.dept) || rank(a.section) - rank(b.section) || (a.team || "").localeCompare(b.team || "", "ja") || AppAgg.comparePeople(a, b));
+    .sort(
+      (a, b) =>
+        rank(a.dept) - rank(b.dept) ||
+        rank(a.section) - rank(b.section) ||
+        (a.section || "").localeCompare(b.section || "", "ja") ||
+        (a.team || "").localeCompare(b.team || "", "ja") ||
+        AppAgg.comparePeople(a, b)
+    );
   const ownerName = (id) => (users.find((u) => u.id === id) || {}).name || "";
   const levelsSel = draft.levels.length === LEVELS.length ? [] : draft.levels;
   const y = new Date().getFullYear();
@@ -332,7 +339,7 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
             <label className="mini-field">
               <span>並び順</span>
               <select id="f-sort" value={draft.sort} onChange={(e) => set({ sort: e.target.value })}>
-                <option value="name">名前順</option>
+                <option value="name">{draft.groupBy === "owner" ? "所属課・チーム・役職の順" : "部署の順"}</option>
                 <option value="target">目標の大きい順</option>
                 <option value="won">受注金額の大きい順</option>
               </select>

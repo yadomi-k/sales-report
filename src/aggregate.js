@@ -330,8 +330,12 @@ window.AppAgg = (function () {
             a.rank[0] - b.rank[0] ||
             a.rank[1] - b.rank[1] ||
             a.rank[2] - b.rank[2] ||
-            // 担当者ごとの表は、チーム → 役職の順 → 作成日が古い順
-            (view.groupBy === "owner" ? String(a.user.team || "").localeCompare(String(b.user.team || ""), "ja") || comparePeople(a.user, b.user) : 0) ||
+            // 担当者ごとの表は、所属課 → チーム → 役職の順 → 作成日が古い順（Creativeと同じ）
+            (view.groupBy === "owner"
+              ? String(a.user.section || "").localeCompare(String(b.user.section || ""), "ja") ||
+                String(a.user.team || "").localeCompare(String(b.user.team || ""), "ja") ||
+                comparePeople(a.user, b.user)
+              : 0) ||
             a.label.localeCompare(b.label, "ja")
           );
         });
