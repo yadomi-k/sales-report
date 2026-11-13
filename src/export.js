@@ -96,7 +96,7 @@ window.AppExport = (function () {
   }
 
   function fileBase(view) {
-    return "売上レポート_" + view.fromYM.replace("-", "") + "-" + view.toYM.replace("-", "");
+    return "VISORA_Sales_" + view.fromYM.replace("-", "") + "-" + view.toYM.replace("-", "");
   }
 
   function conditionLines(summary) {
@@ -114,7 +114,7 @@ window.AppExport = (function () {
     ws.getColumn(2).width = 13;
     for (var i = 0; i < result.columns.length * 2; i++) ws.getColumn(3 + i).width = 15;
     var r = 1;
-    ws.getCell(r, 1).value = "売上レポート（出力日時 " + new Date().toLocaleString("ja-JP") + "）";
+    ws.getCell(r, 1).value = "VISORA 売上レポート（出力日時 " + new Date().toLocaleString("ja-JP") + "）";
     ws.getCell(r, 1).font = { bold: true, size: 14 };
     r++;
     conditionLines(conditions).forEach(function (line) {

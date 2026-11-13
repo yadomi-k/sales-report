@@ -87,6 +87,23 @@ window.AppConfig = {
     ],
   },
 
+  // Creativeタブ：プロジェクト管理（Creative_Achievements__c）のクリエイティブ部の売上
+  // ※項目のAPI参照名は仮。確認して書き換える
+  creative: {
+    object: "Creative_Achievements__c",
+    dateField: "RecordedDate__c", // 計上日（月の振り分けに使う）※仮
+    amountField: "Amount__c", // 金額 ※仮
+    targetField: "TargetAmount__c", // 目標金額（ない場合は "" にすると目標を表示しない）※仮
+    resultField: "CompetitionResult__c", // コンペ結果（受注・失注・消滅など。ない場合は ""）※仮
+    // 成績予測を分ける単位。担当者（所有者）のユーザの「課」で判定する
+    sections: [
+      { key: "SD", label: "SD", userSection: "スペースデザイン課" },
+      { key: "GD", label: "GD", userSection: "グラフィックデザイン課" },
+    ],
+    // 期の番号（2026年 = 48期）
+    periodOffset: 1978,
+  },
+
   defaults: {
     fiscalYearStartMonth: 1, // 年度は1月始まり
   },

@@ -175,5 +175,5 @@ window.AppSF = (function () {
     });
   }
 
-  return { load: load, classify: classify };
+  return { load: load, loadUsers: loadUsers, classify: classify };
 })();

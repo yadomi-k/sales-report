@@ -1,4 +1,5 @@
-// 売上レポート（画面）
+// VISORA：Salesタブ（商談分割をもとにした売上・利益の実績と目標）
+// ログイン画面・タブ・アプリ全体は src/shell.jsx
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 const LEVELS = AppAgg.LEVELS;
@@ -68,8 +69,10 @@ function LoginPage({ onDemo, error }) {
   return (
     <div className="login">
       <div className="login-card">
-        <h1>売上レポート</h1>
-        <p className="muted">商談分割をもとにした個人・部署別の売上／利益の実績と目標</p>
+        <h1 className="login-logo">
+          <img src="./assets/logo.png" alt="VISORA" />
+        </h1>
+        <p className="muted">営業・クリエイティブの売上と目標を見える化</p>
         <button className="btn primary big" onClick={login} disabled={busy}>
           {busy ? "Salesforceへ移動しています…" : "Salesforceでログイン"}
         </button>
@@ -662,7 +665,7 @@ function conditionSummary(f, aff) {
 // ---------------------------------------------------------------
 // レポート画面
 // ---------------------------------------------------------------
-function ReportPage({ mode, profile, onLogout }) {
+function SalesPage({ mode, active }) {
   const isDemo = mode === "demo";
   const [draft, setDraft] = useState(defaultFilters);
   const [applied, setApplied] = useState(null);
@@ -786,21 +789,7 @@ function ReportPage({ mode, profile, onLogout }) {
   }
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          売上レポート{isDemo && <span className="badge">デモデータ</span>}
-        </div>
-        <div className="who">
-          {profile && profile.name && <span className="who-name">{profile.name}</span>}
-          {onLogout && (
-            <button className="btn sm ghost" onClick={onLogout}>
-              {isDemo ? "終了" : "ログアウト"}
-            </button>
-          )}
-        </div>
-      </header>
-
+    <div className="page" hidden={!active}>
       <div className={"layout" + (sidebarClosed ? " sidebar-closed" : "")}>
         <aside className={"sidebar" + (panelOpen ? " open" : "")} aria-label="検索・絞り込み">
           <SearchSidebar
@@ -931,58 +920,3 @@ function SearchIcon() {
     </svg>
   );
 }
-
-// ---------------------------------------------------------------
-// アプリ全体
-// ---------------------------------------------------------------
-function App() {
-  const [state, setState] = useState({ phase: "checking" });
-
-  useEffect(() => {
-    AppSSO.consumeRedirect()
-      .then((profile) => {
-        if (profile) return setState({ phase: "in", mode: "sf", profile });
-        const s = AppSSO.getSession();
-        if (s) return setState({ phase: "in", mode: "sf", profile: s.profile });
-        let demo = false;
-        try {
-          demo = sessionStorage.getItem(MODE_KEY) === "demo";
-        } catch (e) {}
-        setState(demo ? { phase: "in", mode: "demo", profile: { name: "デモ利用者" } } : { phase: "out" });
-      })
-      .catch((e) => setState({ phase: "out", error: e.message }));
-    const onExpire = () => setState({ phase: "out", error: "Salesforceの接続の有効期限が切れました。もう一度ログインしてください。" });
-    window.addEventListener("salesreport-session-expired", onExpire);
-    return () => window.removeEventListener("salesreport-session-expired", onExpire);
-  }, []);
-
-  if (AppConfig.demoOnly) return <ReportPage mode="demo" profile={{ name: "デモ利用者" }} onLogout={null} />;
-  if (state.phase === "checking") return <div className="center muted">読み込み中…</div>;
-  if (state.phase === "out")
-    return (
-      <LoginPage
-        error={state.error}
-        onDemo={() => {
-          try {
-            sessionStorage.setItem(MODE_KEY, "demo");
-          } catch (e) {}
-          setState({ phase: "in", mode: "demo", profile: { name: "デモ利用者" } });
-        }}
-      />
-    );
-  return (
-    <ReportPage
-      mode={state.mode}
-      profile={state.profile}
-      onLogout={() => {
-        if (state.mode === "sf") AppSSO.endSession();
-        try {
-          sessionStorage.removeItem(MODE_KEY);
-        } catch (e) {}
-        setState({ phase: "out" });
-      }}
-    />
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);

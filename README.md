@@ -1,7 +1,11 @@
-# 売上レポート（試作品）
+# VISORA（試作品）
 
-Salesforceの商談・商談分割・ユーザのデータから、**個人・チーム・課・部ごとの売上／利益の実績と目標**を
-表とグラフで表示し、Excel（書式付き）・CSVで出力するWebアプリです。
+営業とクリエイティブ部の**売上・利益の実績と目標**を、表・グラフ・ダッシュボードで見える化するWebアプリです。
+
+| タブ | 内容 | 見られる人 |
+|---|---|---|
+| **Sales** | 商談分割をもとにした、本部・部・課・チーム・担当者ごとの売上／利益の実績と目標 | ログインできる人全員 |
+| **Creative** | プロジェクト管理（Creative_Achievements__c）をもとにした、クリエイティブ部の売上ダッシュボード | **プロジェクト管理の金額を参照できる人だけ**（手順は [docs/permissions.md](docs/permissions.md)） |
 
 - Salesforceのデータは**読み取るだけ**です。商談オブジェクトの変更、Apex・LWC・Visualforceは使いません。
 - CaseShelfとは別のアプリです。ログインの仕組みはCaseShelfと同じ「Salesforceでログイン」（専用の接続アプリケーション + PKCE。サーバー不要）です。
@@ -70,7 +74,11 @@ python3 -m http.server 8790
 | `src/demo.js` | デモデータ |
 | `src/aggregate.js` | 集計（表・グラフ・出力で共通） |
 | `src/export.js` | Excel・CSV出力 |
-| `src/app.jsx` | 画面 |
+| `src/app.jsx` | Salesタブの画面（ログイン画面を含む） |
+| `src/creativedata.js` | Creativeタブのデータ（プロジェクト管理の読み取り・集計・デモデータ） |
+| `src/creative.jsx` | Creativeタブの画面（ダッシュボード・表・明細・Excel出力） |
+| `src/shell.jsx` | アプリ全体（上部バー・Sales／Creativeタブの切り替え） |
+| `assets/` | VISORAのロゴ・アイコン |
 | `styles.css` | 見た目 |
 
 ## 6. 今後の予定（第2段階）

@@ -21,7 +21,14 @@ window.AppDemo = (function () {
     { dept: "第３営業部", sections: [{ name: "営業１課", teams: ["Gチーム"] }] },
     { dept: "営業推進部", sections: [{ name: "推進課", teams: ["Hチーム"] }] },
     { dept: "営業開発室", sections: [{ name: "開発課", teams: ["Iチーム"] }] },
-    { dept: "クリエイティブ部", sections: [{ name: "プランニング課", teams: ["Jチーム"] }, { name: "スペースデザイン課", teams: ["Kチーム"] }] },
+    {
+      dept: "クリエイティブ部",
+      sections: [
+        { name: "プランニング課", teams: ["プランニングチーム"] },
+        { name: "スペースデザイン課", teams: ["SD1チーム", "SD2チーム", "SD3チーム"] },
+        { name: "グラフィックデザイン課", teams: ["GD1チーム", "GD2チーム"] },
+      ],
+    },
     { dept: "大阪事業部", sections: [{ name: "営業課", teams: ["Lチーム"] }, { name: "製作課", teams: ["Mチーム"] }] },
   ];
   var FAMILY = ["佐藤", "鈴木", "高橋", "田中", "伊藤", "渡辺", "山本", "中村", "小林", "加藤", "吉田", "山田", "佐々木", "山口", "松本", "井上", "木村", "林", "清水", "山崎", "森", "池田", "橋本", "阿部", "石川"];
@@ -74,7 +81,7 @@ window.AppDemo = (function () {
         var idx = y * 12 + (m - 1);
         var season = 1 + 0.35 * Math.sin((m / 12) * Math.PI * 2 + 1);
         users.forEach(function (u, ui) {
-          var base = (11 + (ui % 5) * 3) * 1e6 * season;
+          var base = (5 + (ui % 5) * 1.5) * 1e6 * season;
           var amt = Math.round(base / 1e5) * 1e5;
           targets.push({ oppId: "006TGT" + ym + ui, ownerId: u.id, ym: ym, amount: amt, profit: Math.round(amt * 0.26 / 1e3) * 1e3 });
         });
@@ -147,5 +154,10 @@ window.AppDemo = (function () {
     });
   }
 
-  return { load: load };
+  function loadUsers() {
+    if (!cache) cache = build();
+    return Promise.resolve(cache.users);
+  }
+
+  return { load: load, loadUsers: loadUsers };
 })();

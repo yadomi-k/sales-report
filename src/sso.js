@@ -286,6 +286,11 @@ window.AppSSO = (function () {
     return next("/query?q=" + encodeURIComponent(soql));
   }
 
+  // オブジェクトの項目一覧（ログインした人が参照できる項目だけが返る）
+  function describe(objectName) {
+    return api("/sobjects/" + encodeURIComponent(objectName) + "/describe");
+  }
+
   // 件数だけを数える（SELECT COUNT() ...）
   function count(soql) {
     return api("/query?q=" + encodeURIComponent(soql)).then(function (body) {
@@ -311,6 +316,7 @@ window.AppSSO = (function () {
     endSession: endSession,
     query: query,
     count: count,
+    describe: describe,
     soqlString: soqlString,
     recordUrl: recordUrl,
   };
