@@ -7,10 +7,32 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
 <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
-<link rel="stylesheet" href="./styles.css" />
+<link rel="stylesheet" href="./styles.css?v=20261113a" />
 </head>
 <body>
 <div id="root"></div>
+<!-- 更新したら、下の ?v= の値（版番号）を変える。ブラウザに残った古いファイルを使わないようにするため -->
+<script>
+  // 画面の読み込みに失敗したとき、真っ白のままにせず案内を出す
+  window.__visoraFail = function (msg) {
+    var root = document.getElementById("root");
+    if (!root || root.getAttribute("data-mounted")) return;
+    root.innerHTML =
+      '<div style="max-width:36rem;margin:4rem auto;padding:1.5rem;border:1px solid #f1c6c0;border-radius:.75rem;background:#fff;font-family:sans-serif;line-height:1.7">' +
+      '<b style="color:#c0392b">画面を表示できませんでした</b><br>' +
+      'キーボードの <b>Ctrl + F5</b>（Macは <b>Command + Shift + R</b>）でページを再読み込みしてください。' +
+      '直らない場合は、下の内容を管理者に伝えてください。' +
+      '<pre style="white-space:pre-wrap;background:#f6f6f7;padding:.75rem;border-radius:.5rem;font-size:12px;margin-top:.75rem"></pre></div>';
+    root.querySelector("pre").textContent = String(msg || "不明なエラー");
+  };
+  window.addEventListener("error", function (e) {
+    window.__visoraFail((e.message || "") + (e.filename ? "\n" + e.filename.split("/").pop() + ":" + e.lineno : ""));
+  });
+  setTimeout(function () {
+    var root = document.getElementById("root");
+    if (root && !root.getAttribute("data-mounted") && !root.innerHTML) window.__visoraFail("読み込みがタイムアウトしました（ネットワークを確認してください）");
+  }, 20000);
+</script>
 
 <!-- React / Babel（CDN、ビルド不要。CaseShelfと同じ構成） -->
 <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
@@ -21,16 +43,16 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <!-- アプリ本体 -->
-<script src="./src/config.js"></script>
-<script src="./src/sso.js"></script>
-<script src="./src/sfdata.js"></script>
-<script src="./src/demo.js"></script>
-<script src="./src/aggregate.js"></script>
-<script src="./src/export.js"></script>
-<script src="./src/creativedata.js"></script>
+<script src="./src/config.js?v=20261113a"></script>
+<script src="./src/sso.js?v=20261113a"></script>
+<script src="./src/sfdata.js?v=20261113a"></script>
+<script src="./src/demo.js?v=20261113a"></script>
+<script src="./src/aggregate.js?v=20261113a"></script>
+<script src="./src/export.js?v=20261113a"></script>
+<script src="./src/creativedata.js?v=20261113a"></script>
 <!-- 画面：Salesタブ → Creativeタブ → アプリ全体（タブ・ログイン）の順 -->
-<script type="text/babel" data-presets="react" src="./src/app.jsx"></script>
-<script type="text/babel" data-presets="react" src="./src/creative.jsx"></script>
-<script type="text/babel" data-presets="react" src="./src/shell.jsx"></script>
+<script type="text/babel" data-presets="react" src="./src/app.jsx?v=20261113a"></script>
+<script type="text/babel" data-presets="react" src="./src/creative.jsx?v=20261113a"></script>
+<script type="text/babel" data-presets="react" src="./src/shell.jsx?v=20261113a"></script>
 </body>
 </html>

@@ -117,4 +117,34 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+// 画面の途中でエラーが起きても真っ白にせず、内容と対処を表示する
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="center">
+        <div className="alert error" style={{ maxWidth: "36rem", margin: "0 auto", textAlign: "left" }}>
+          <b>画面を表示できませんでした。</b>
+          <br />
+          キーボードの <b>Ctrl + F5</b>（Macは Command + Shift + R）でページを再読み込みしてください。直らない場合は、下の内容を管理者に伝えてください。
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", marginTop: "0.5rem" }}>{String(this.state.error && (this.state.error.message || this.state.error))}</pre>
+        </div>
+      </div>
+    );
+  }
+}
+
+const rootEl = document.getElementById("root");
+rootEl.setAttribute("data-mounted", "1");
+ReactDOM.createRoot(rootEl).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
