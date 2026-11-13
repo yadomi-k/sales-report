@@ -182,7 +182,7 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
   const teams = uniq(inHonbu.filter((u) => (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section)).map((u) => u.team));
   const owners = inHonbu
     .filter((u) => u.dept && (!draft.dept || u.dept === draft.dept) && (!draft.section || u.section === draft.section) && (!draft.team || u.team === draft.team))
-    .sort((a, b) => rank(a.dept) - rank(b.dept) || rank(a.section) - rank(b.section) || (a.team + a.name).localeCompare(b.team + b.name, "ja"));
+    .sort((a, b) => rank(a.dept) - rank(b.dept) || rank(a.section) - rank(b.section) || (a.team || "").localeCompare(b.team || "", "ja") || AppAgg.comparePeople(a, b));
   const ownerName = (id) => (users.find((u) => u.id === id) || {}).name || "";
   const levelsSel = draft.levels.length === LEVELS.length ? [] : draft.levels;
   const y = new Date().getFullYear();
@@ -282,6 +282,7 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
               {owners.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
+                  {u.title ? "（" + u.title + "）" : ""}
                   {u.active ? "" : "（無効）"}
                 </option>
               ))}

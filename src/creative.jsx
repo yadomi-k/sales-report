@@ -270,7 +270,7 @@ function crPeopleModel(r) {
     team: t.team,
     section: t.section,
     breakdown: !!t.oppSection,
-    people: t.people.map((p) => ({ name: p.name, cells: cols.map((c) => sum(p.monthly, c)) })),
+    people: t.people.map((p) => ({ name: p.name, title: p.title, cells: cols.map((c) => sum(p.monthly, c)) })),
     subtotal: cols.map((c) => sum(t.monthly, c)),
   }));
   return { cols, teams, total: cols.map((c) => sum(r.monthly, c)) };
@@ -331,6 +331,7 @@ function CrPeopleTable({ r }) {
             )}
             <th className="sticky c2w person" rowSpan={per}>
               {p.name}
+              {p.title && <span className="person-title">{p.title}</span>}
             </th>
           </>,
           p.cells,
@@ -601,7 +602,7 @@ function crExportExcel(r) {
     pr += n;
   };
   pm.teams.forEach((team) => {
-    team.people.forEach((p) => put(team.team, p.name, p.cells, null, team.breakdown));
+    team.people.forEach((p) => put(team.team, p.name + (p.title ? "（" + p.title + "）" : ""), p.cells, null, team.breakdown));
     put(team.team, "小計", team.subtotal, "FFEEF3FB", team.breakdown);
   });
   put("合計", "", pm.total, "FFFFF6C4");
@@ -730,6 +731,7 @@ function CreativeSidebar({ draft, setDraft, choices, onSearch, onClear, onClose,
               {(choices.ownerChoices || []).map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
+                  {u.title ? "（" + u.title + "）" : ""}
                 </option>
               ))}
             </select>

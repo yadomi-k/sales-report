@@ -63,6 +63,9 @@ window.AppDemo = (function () {
               dept: d.dept,
               section: s.name,
               team: t,
+              // デモ：チームの1人目をチームの役職者にする
+              title: i === 0 ? (t === s.teams[0] ? "課長" : "主任") : r() < 0.15 ? "主任" : "",
+              createdAt: new Date(2005 + Math.floor(r() * 20), Math.floor(r() * 12), 1 + Math.floor(r() * 28)).toISOString(),
               active: true,
             });
           }

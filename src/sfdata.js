@@ -49,8 +49,8 @@ window.AppSF = (function () {
 
   function loadUsers() {
     var u = cfg().user;
-    var fields = ["Id", "Name", "IsActive"];
-    [u.department, u.section, u.team].forEach(function (f) {
+    var fields = ["Id", "Name", "IsActive", "CreatedDate"];
+    [u.department, u.section, u.team, u.title].forEach(function (f) {
       if (f && fields.indexOf(f) < 0) fields.push(f);
     });
     // 退職者・無効ユーザの過去実績も集計できるよう、無効ユーザも含めて取得する
@@ -63,6 +63,8 @@ window.AppSF = (function () {
           dept: (u.department && r[u.department]) || "",
           section: (u.section && r[u.section]) || "",
           team: (u.team && r[u.team]) || "",
+          title: (u.title && r[u.title]) || "",
+          createdAt: String(r.CreatedDate || ""),
           active: !!r.IsActive,
         };
       });

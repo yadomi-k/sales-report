@@ -306,14 +306,14 @@ window.AppCreative = (function () {
     var ownerMap = {};
     inScope.forEach(function (x) {
       if (!deptOk(x) || !secOk(x) || !teamOk(x)) return;
-      ownerMap[x.ownerId] = { id: x.ownerId, name: x.owner.name, team: x.orgNow.team || "" };
+      ownerMap[x.ownerId] = { id: x.ownerId, name: x.owner.name, title: x.owner.title || "", team: x.orgNow.team || "" };
     });
     var ownerChoices = Object.keys(ownerMap)
       .map(function (k) {
         return ownerMap[k];
       })
       .sort(function (a, b) {
-        return a.team.localeCompare(b.team, "ja") || a.name.localeCompare(b.name, "ja");
+        return a.team.localeCompare(b.team, "ja") || AppAgg.comparePeople(who(a.id), who(b.id));
       });
 
     var rows = inScope.filter(function (x) {
@@ -352,6 +352,7 @@ window.AppCreative = (function () {
         (people[pk] = {
           id: x.ownerId,
           name: x.owner.name,
+          title: x.owner.title || "",
           team: x.orgNow.team || "（チーム未設定）",
           section: x.section,
           sectionName: x.sectionName,
@@ -388,7 +389,7 @@ window.AppCreative = (function () {
         return owners[k];
       })
       .sort(function (a, b) {
-        return secRank(a.section) - secRank(b.section) || a.team.localeCompare(b.team, "ja") || b.amount - a.amount;
+        return secRank(a.section) - secRank(b.section) || a.team.localeCompare(b.team, "ja") || AppAgg.comparePeople(who(a.id), who(b.id));
       });
     details.sort(function (a, b) {
       return a.date < b.date ? -1 : a.date > b.date ? 1 : a.name.localeCompare(b.name, "ja");
@@ -400,7 +401,8 @@ window.AppCreative = (function () {
         return people[k];
       })
       .sort(function (a, b) {
-        return secRank(a.section) - secRank(b.section) || a.sectionName.localeCompare(b.sectionName, "ja") || a.team.localeCompare(b.team, "ja") || a.name.localeCompare(b.name, "ja");
+        // チームの中は、役職の順 → 同じ役職ならアカウントの作成日が古い順
+        return secRank(a.section) - secRank(b.section) || a.sectionName.localeCompare(b.sectionName, "ja") || a.team.localeCompare(b.team, "ja") || AppAgg.comparePeople(who(a.id), who(b.id));
       })
       .forEach(function (p) {
         var last = teamsOrdered[teamsOrdered.length - 1];

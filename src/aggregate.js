@@ -101,6 +101,24 @@ window.AppAgg = (function () {
     return i < 0 ? order.length : i;
   }
 
+  // 人の並び順：役職の順（設定 user.titleOrder）→ 同じ役職ならアカウントの作成日が古い順 → 名前順
+  function titleRank(title) {
+    var order = (ucfg().titleOrder || []).map(norm);
+    var t = norm(title);
+    if (!t) return order.length + 1; // 役職なしは一番後ろ
+    var i = order.indexOf(t);
+    return i < 0 ? order.length : i;
+  }
+  function comparePeople(a, b) {
+    a = a || {};
+    b = b || {};
+    return (
+      titleRank(a.title) - titleRank(b.title) ||
+      String(a.createdAt || "9999").localeCompare(String(b.createdAt || "9999")) ||
+      String(a.name || "").localeCompare(String(b.name || ""), "ja")
+    );
+  }
+
   function makeAffiliation(users) {
     var byId = {};
     users.forEach(function (u) {
@@ -276,7 +294,7 @@ window.AppAgg = (function () {
     if (by === "section") return { key: u.dept + "|" + u.section, label: none(u.dept, "部") + " / " + none(u.section, "課") };
     if (by === "team")
       return { key: u.dept + "|" + u.section + "|" + u.team, label: none(u.dept, "部") + " / " + none(u.section, "課") + " / " + none(u.team, "チーム") };
-    return { key: u.id, label: u.name + (u.team || u.section || u.dept ? "（" + [u.dept, u.section, u.team].filter(Boolean).join(" / ") + "）" : "") };
+    return { key: u.id, label: u.name + (u.title ? " " + u.title : "") + (u.team || u.section || u.dept ? "（" + [u.dept, u.section, u.team].filter(Boolean).join(" / ") + "）" : "") };
   }
 
   // 全体の表 + 部・課・チーム・担当者ごとの表を作る
@@ -291,7 +309,7 @@ window.AppAgg = (function () {
       var bucket = function (userId, date) {
         var u = fd.aff(userId, date);
         var g = groupKey(u, view.groupBy);
-        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, rank: [orgRank(u.honbu), orgRank(u.dept), orgRank(u.section)], splits: [], targets: [] });
+        return map[g.key] || (map[g.key] = { key: g.key, label: g.label, rank: [orgRank(u.honbu), orgRank(u.dept), orgRank(u.section)], user: u, splits: [], targets: [] });
       };
       fd.splits.forEach(function (s) {
         bucket(s.ownerId, s.salesDate).splits.push(s);
@@ -301,14 +319,21 @@ window.AppAgg = (function () {
       });
       groups = Object.keys(map).map(function (k) {
         var g = map[k];
-        return { key: g.key, label: g.label, rank: g.rank, cells: computeTable(g.splits, g.targets, columns) };
+        return { key: g.key, label: g.label, rank: g.rank, user: g.user, cells: computeTable(g.splits, g.targets, columns) };
       });
       var last = columns.length - 1;
       if (view.sort === "target") groups.sort(function (a, b) { return b.cells[last].target.amount - a.cells[last].target.amount; });
       else if (view.sort === "won") groups.sort(function (a, b) { return b.cells[last].cum["受注"].amount - a.cells[last].cum["受注"].amount; });
       else
         groups.sort(function (a, b) {
-          return a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2] || a.label.localeCompare(b.label, "ja");
+          return (
+            a.rank[0] - b.rank[0] ||
+            a.rank[1] - b.rank[1] ||
+            a.rank[2] - b.rank[2] ||
+            // 担当者ごとの表は、チーム → 役職の順 → 作成日が古い順
+            (view.groupBy === "owner" ? String(a.user.team || "").localeCompare(String(b.user.team || ""), "ja") || comparePeople(a.user, b.user) : 0) ||
+            a.label.localeCompare(b.label, "ja")
+          );
         });
     }
     var details = fd.splits.slice().sort(function (a, b) {
@@ -373,6 +398,7 @@ window.AppAgg = (function () {
     options: options,
     isTargetOrg: isTargetOrg,
     honbuOf: honbuOf,
+    comparePeople: comparePeople,
     orgRank: orgRank,
     fmtYen: fmtYen,
     fmtPct: fmtPct,

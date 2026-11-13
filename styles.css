@@ -1145,3 +1145,12 @@ table.report.people th.sub-label {
   font-size: 0.6875rem;
   color: var(--color-text-dim);
 }
+
+/* 名前の下の役職 */
+.person-title {
+  display: block;
+  font-size: 0.65625rem;
+  font-weight: 400;
+  color: var(--color-text-dim);
+  margin-top: 0.0625rem;
+}
