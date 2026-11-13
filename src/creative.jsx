@@ -260,13 +260,16 @@ function crPeopleModel(r) {
     col.months.reduce(
       (a, ym) => {
         const i = r.months.indexOf(ym);
-        return { amount: a.amount + monthly[i].amount, target: a.target + monthly[i].target };
+        const m = monthly[i];
+        return { amount: a.amount + m.amount, target: a.target + m.target, project: a.project + (m.project || 0), opportunity: a.opportunity + (m.opportunity || 0) };
       },
-      { amount: 0, target: 0 }
+      { amount: 0, target: 0, project: 0, opportunity: 0 }
     );
+  // 商談分割も売上に入る課（プランニング課）は、金額の内訳（プロジェクト／商談分割）の行も出す
   const teams = r.teamsTable.map((t) => ({
     team: t.team,
     section: t.section,
+    breakdown: !!t.oppSection,
     people: t.people.map((p) => ({ name: p.name, cells: cols.map((c) => sum(p.monthly, c)) })),
     subtotal: cols.map((c) => sum(t.monthly, c)),
   }));
@@ -276,7 +279,7 @@ function crPeopleModel(r) {
 function CrPeopleTable({ r }) {
   const t = crPeopleModel(r);
   // 1人（または小計・合計）ぶんの2行。head は行の左側の見出しセル（1行目にだけ入る）
-  const pair = (key, head, cells, cls) => [
+  const pair = (key, head, cells, cls, breakdown) => [
     <tr key={key + ":t"} className={"block-first " + cls}>
       {head}
       <th className="sticky c3 label">目標金額</th>
@@ -294,10 +297,27 @@ function CrPeopleTable({ r }) {
         </td>
       ))}
     </tr>,
-  ];
+  ].concat(
+    breakdown
+      ? [
+          ["project", "うちプロジェクト"],
+          ["opportunity", "うち商談分割"],
+        ].map(([k, label]) => (
+          <tr key={key + ":" + k} className={cls + " r-breakdown"}>
+            <th className="sticky c3 label sub-label">{label}</th>
+            {cells.map((x, i) => (
+              <td key={i} className={"k-" + t.cols[i].kind}>
+                {crYen(x[k])}
+              </td>
+            ))}
+          </tr>
+        ))
+      : []
+  );
   const body = [];
   t.teams.forEach((team) => {
-    const span = team.people.length * 2 + 2;
+    const per = team.breakdown ? 4 : 2; // 1人あたりの行数
+    const span = team.people.length * per + per;
     team.people.forEach((p, i) => {
       body.push(
         ...pair(
@@ -309,23 +329,25 @@ function CrPeopleTable({ r }) {
                 <span className="team-sec">{team.section}</span>
               </th>
             )}
-            <th className="sticky c2w person" rowSpan={2}>
+            <th className="sticky c2w person" rowSpan={per}>
               {p.name}
             </th>
           </>,
           p.cells,
-          ""
+          "",
+          team.breakdown
         )
       );
     });
     body.push(
       ...pair(
         team.team + "/" + team.section + "/小計",
-        <th className="sticky c2w person subtotal" rowSpan={2}>
+        <th className="sticky c2w person subtotal" rowSpan={per}>
           小計
         </th>,
         team.subtotal,
-        "r-subtotal"
+        "r-subtotal",
+        team.breakdown
       )
     );
   });
@@ -419,8 +441,9 @@ function CrDetail({ r, isDemo }) {
         <table className="detail">
           <thead>
             <tr>
-              <th>計上日</th>
-              <th>プロジェクト</th>
+              <th>計上日・売上日</th>
+              <th>プロジェクト・商談</th>
+              <th>売上の元</th>
               <th>担当者</th>
               <th>課（当時）</th>
               <th>チーム（当時）</th>
@@ -433,10 +456,17 @@ function CrDetail({ r, isDemo }) {
               <tr key={x.id}>
                 <td>{x.date}</td>
                 <td className="text">
-                  {isDemo ? x.name : <a href={AppSSO.recordUrl(c.object, x.id)} target="_blank" rel="noreferrer">{x.name}</a>}
+                  {isDemo ? (
+                    x.name
+                  ) : (
+                    <a href={x.source === "opportunity" ? AppSSO.recordUrl("Opportunity", x.oppId) : AppSSO.recordUrl(c.object, x.id)} target="_blank" rel="noreferrer">
+                      {x.name}
+                    </a>
+                  )}
                 </td>
+                <td className="text">{x.source === "opportunity" ? "商談分割" : "プロジェクト"}</td>
                 <td className="text">{x.owner.name}</td>
-                <td className="text">{x.section}</td>
+                <td className="text">{x.sectionName}</td>
                 <td className="text">{x.orgNow.team}</td>
                 {c.resultField && <td className="text">{x.result}</td>}
                 <td>{crYen(x.amount)}</td>
@@ -534,22 +564,32 @@ function crExportExcel(r) {
   ps.getCell(1, 1).value = "担当者別（" + r.periodLabel + "）";
   ps.getCell(1, 1).font = { bold: true, size: 12 };
   let pr = 3;
-  const put = (team, name, cells, style) => {
+  const put = (team, name, cells, style, breakdown) => {
+    const n = breakdown ? 4 : 2;
     ps.getCell(pr, 1).value = team;
     ps.getCell(pr, 2).value = name;
     ps.getCell(pr, 3).value = "目標金額";
     ps.getCell(pr + 1, 3).value = "金額";
-    for (let k = 0; k < 2; k++) for (let c = 1; c <= 3 + cells.length; c++) {
+    if (breakdown) {
+      ps.getCell(pr + 2, 3).value = "うちプロジェクト";
+      ps.getCell(pr + 3, 3).value = "うち商談分割";
+      cells.forEach((x, i) => {
+        [x.project, x.opportunity].forEach((v, k) => {
+          const cell = ps.getCell(pr + 2 + k, 4 + i);
+          cell.value = v;
+          cell.numFmt = "#,##0";
+          cell.font = { color: { argb: "FF666666" } };
+        });
+      });
+    }
+    for (let k = 0; k < n; k++) for (let c = 1; c <= 3 + cells.length; c++) {
       const cell = ps.getCell(pr + k, c);
       cell.border = border;
       if (style) cell.fill = fill(style);
     }
     cells.forEach((x, i) => {
       const kind = pm.cols[i].kind;
-      if (kind !== "month" && !style) {
-        ps.getCell(pr, 4 + i).fill = fill(SUM_FILL[kind]);
-        ps.getCell(pr + 1, 4 + i).fill = fill(SUM_FILL[kind]);
-      }
+      if (kind !== "month" && !style) for (let k = 0; k < n; k++) ps.getCell(pr + k, 4 + i).fill = fill(SUM_FILL[kind]);
       const tc = ps.getCell(pr, 4 + i);
       tc.value = x.target;
       tc.numFmt = "#,##0";
@@ -558,26 +598,29 @@ function crExportExcel(r) {
       ac.numFmt = "#,##0";
       if (x.target && x.amount < x.target) ac.font = { color: { argb: "FFE00000" } };
     });
-    pr += 2;
+    pr += n;
   };
   pm.teams.forEach((team) => {
-    team.people.forEach((p) => put(team.team, p.name, p.cells));
-    put(team.team, "小計", team.subtotal, "FFEEF3FB");
+    team.people.forEach((p) => put(team.team, p.name, p.cells, null, team.breakdown));
+    put(team.team, "小計", team.subtotal, "FFEEF3FB", team.breakdown);
   });
   put("合計", "", pm.total, "FFFFF6C4");
 
   const ds = wb.addWorksheet("明細", { views: [{ state: "frozen", ySplit: 1 }] });
   ds.columns = [
-    { header: "計上日", key: "date", width: 12 },
-    { header: "プロジェクト", key: "name", width: 36 },
+    { header: "計上日・売上日", key: "date", width: 14 },
+    { header: "プロジェクト・商談", key: "name", width: 36 },
+    { header: "売上の元", key: "source", width: 12 },
     { header: "担当者", key: "owner", width: 14 },
-    { header: "課（当時）", key: "section", width: 10 },
+    { header: "課（当時）", key: "section", width: 16 },
     { header: "チーム（当時）", key: "team", width: 16 },
   ]
     .concat(c.resultField ? [{ header: "コンペ結果", key: "result", width: 10 }] : [])
     .concat([{ header: "金額", key: "amount", width: 15, style: { numFmt: "#,##0" } }]);
   ds.getRow(1).font = { bold: true };
-  r.details.forEach((x) => ds.addRow({ date: x.date, name: x.name, owner: x.owner.name, section: x.section, team: x.orgNow.team, result: x.result, amount: x.amount }));
+  r.details.forEach((x) =>
+    ds.addRow({ date: x.date, name: x.name, source: x.source === "opportunity" ? "商談分割" : "プロジェクト", owner: x.owner.name, section: x.sectionName, team: x.orgNow.team, result: x.result, amount: x.amount })
+  );
   return wb.xlsx.writeBuffer().then((buf) => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
@@ -835,7 +878,7 @@ function CreativePage({ mode, active }) {
                 </span>
               ))}
             </div>
-            {r && <span className="count">プロジェクト {r.details.length.toLocaleString()}件</span>}
+            {r && <span className="count">明細 {r.details.length.toLocaleString()}件</span>}
           </div>
 
           {error && <div className="alert error">{error}</div>}

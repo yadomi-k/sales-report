@@ -78,8 +78,9 @@ window.AppCreative = (function () {
     var get = function (x, f) {
       return f && fields.indexOf(f) >= 0 ? x[f] : null;
     };
-    return Promise.all([AppSF.loadUsers(), AppSSO.query(soql)]).then(function (r) {
-      return {
+    var oppLoad = hasOpportunitySections() ? AppSF.load(fromYM, toYM) : Promise.resolve(null);
+    return Promise.all([AppSF.loadUsers(), AppSSO.query(soql), oppLoad]).then(function (r) {
+      return withOpportunity({
         users: r[0],
         records: r[1].map(function (x) {
           var date = String(x[c.dateField] || "").slice(0, 10);
@@ -96,10 +97,65 @@ window.AppCreative = (function () {
             target: isTarget ? num(get(x, c.targetField)) : 0,
             result: get(x, c.resultField) || "",
             org: org.dept || org.section || org.team ? org : null,
+            source: "project",
           };
         }),
-      };
+      }, r[2]);
     });
+  }
+
+  // ---------------------------------------------------------------
+  // 商談分割・個人目標を足す課（プランニング課）
+  // ---------------------------------------------------------------
+  function hasOpportunitySections() {
+    return cfg().sections.some(function (x) {
+      return x.opportunity;
+    });
+  }
+  function sectionCfgOf(org) {
+    var s = norm(org && org.section);
+    return (
+      cfg().sections.filter(function (x) {
+        return norm(x.userSection) === s;
+      })[0] || null
+    );
+  }
+  // oppData：Salesタブと同じ形（AppSF.load / AppDemo.load の結果）。所属は分割・目標の所有者の今の所属
+  function withOpportunity(data, oppData) {
+    if (!oppData) return data;
+    var c = cfg();
+    var levels = c.opportunityLevels || ["受注"];
+    var byId = {};
+    data.users.forEach(function (u) {
+      byId[u.id] = u;
+    });
+    var isOppSection = function (userId) {
+      var sc = sectionCfgOf(byId[userId]);
+      return !!(sc && sc.opportunity);
+    };
+    var extra = [];
+    oppData.splits.forEach(function (sp) {
+      if (!isOppSection(sp.ownerId) || levels.indexOf(sp.level) < 0) return;
+      extra.push({
+        id: "OPP-" + sp.oppId + "-" + sp.ownerId,
+        oppId: sp.oppId,
+        name: sp.oppName,
+        ownerId: sp.ownerId,
+        date: sp.salesDate,
+        ym: sp.ym,
+        isTarget: false,
+        amount: sp.amount,
+        target: 0,
+        result: "",
+        org: null,
+        source: "opportunity",
+      });
+    });
+    oppData.targets.forEach(function (t) {
+      if (!isOppSection(t.ownerId)) return;
+      extra.push({ id: "OPPTGT-" + t.oppId, oppId: t.oppId, name: "個人目標", ownerId: t.ownerId, date: t.ym + "-01", ym: t.ym, isTarget: true, amount: 0, target: t.amount, result: "", org: null, source: "opportunity" });
+    });
+    return { users: data.users, records: data.records.concat(extra) };
   }
 
   // ---------------------------------------------------------------
@@ -107,7 +163,8 @@ window.AppCreative = (function () {
   // ---------------------------------------------------------------
   var demoCache = {};
   function demoLoad(fromYM, toYM) {
-    return AppDemo.loadUsers().then(function (users) {
+    return Promise.all([AppDemo.loadUsers(), hasOpportunitySections() ? AppDemo.load(fromYM, toYM) : Promise.resolve(null)]).then(function (res) {
+      var users = res[0];
       var records = [];
       for (var y = Number(fromYM.slice(0, 4)); y <= Number(toYM.slice(0, 4)); y++) {
         if (!demoCache[y]) demoCache[y] = demoBuild(users, y);
@@ -117,7 +174,7 @@ window.AppCreative = (function () {
           })
         );
       }
-      return { users: users, records: records };
+      return withOpportunity({ users: users, records: records }, res[1]);
     });
   }
   function demoBuild(users, year) {
@@ -142,7 +199,7 @@ window.AppCreative = (function () {
       var ym = year + "-" + pad2(m);
       var season = 1 + 0.4 * Math.sin((m / 12) * Math.PI * 2 + 0.5);
       owners.forEach(function (u, i) {
-        out.push({ id: "TGT" + ym + i, name: "目標", ownerId: u.id, date: ym + "-01", ym: ym, amount: 0, target: Math.round((3.6 + (i % 4) * 0.8) * 1e6 * season / 1e4) * 1e4, result: "", isTarget: true, org: null });
+        out.push({ id: "TGT" + ym + i, name: "目標", ownerId: u.id, date: ym + "-01", ym: ym, amount: 0, target: Math.round((3.6 + (i % 4) * 0.8) * 1e6 * season / 1e4) * 1e4, result: "", isTarget: true, org: null, source: "project" });
       });
       var count = Math.round(18 + 10 * season);
       for (var k = 0; k < count; k++) {
@@ -161,6 +218,7 @@ window.AppCreative = (function () {
           result: c.resultField ? (r() < 0.45 ? RESULTS[Math.floor(r() * RESULTS.length)] : "") : "",
           isTarget: false,
           org: org,
+          source: "project",
         });
       }
     }
@@ -198,10 +256,16 @@ window.AppCreative = (function () {
     for (var ym = f.fromYM; ym <= f.toYM && months.length < 240; ym = AppAgg.ymAdd(ym, 1)) months.push(ym);
 
     // すべてのレコードに所属（当時 → なければ今）と、SD・GDの区分を付ける
-    var inScope = data.records.map(function (x) {
-      var org = orgOf(x);
-      return Object.assign({}, x, { owner: who(x.ownerId), orgNow: org, section: sectionKeyOf(org), sectionName: org.section || "（課未設定）" });
-    });
+    var inScope = data.records
+      .map(function (x) {
+        var org = orgOf(x);
+        var sc = sectionCfgOf(org);
+        return Object.assign({}, x, { owner: who(x.ownerId), orgNow: org, section: sc ? sc.key : "", sectionName: org.section || "（課未設定）", oppSection: !!(sc && sc.opportunity) });
+      })
+      // 商談の個人目標を使う課（プランニング課）は、プロジェクト管理の目標を使わない
+      .filter(function (x) {
+        return !(x.oppSection && x.isTarget && x.source !== "opportunity");
+      });
     var sortJa = function (a, b) {
       return String(a).localeCompare(String(b), "ja");
     };
@@ -291,12 +355,14 @@ window.AppCreative = (function () {
           team: x.orgNow.team || "（チーム未設定）",
           section: x.section,
           sectionName: x.sectionName,
+          oppSection: x.oppSection,
           monthly: months.map(function () {
-            return { amount: 0, target: 0 };
+            return { amount: 0, target: 0, project: 0, opportunity: 0 };
           }),
         });
       pp.monthly[i].amount += x.amount;
       pp.monthly[i].target += x.target;
+      pp.monthly[i][x.source === "opportunity" ? "opportunity" : "project"] += x.amount;
       if (x.isTarget) return;
       monthly[i].count += 1;
       if (x.result) {
@@ -342,12 +408,16 @@ window.AppCreative = (function () {
         last.people.push(p);
       });
     teamsOrdered.forEach(function (t) {
+      t.oppSection = t.people.some(function (p) {
+        return p.oppSection;
+      });
       t.monthly = months.map(function (_, i) {
         return t.people.reduce(
           function (a, p) {
-            return { amount: a.amount + p.monthly[i].amount, target: a.target + p.monthly[i].target };
+            var m = p.monthly[i];
+            return { amount: a.amount + m.amount, target: a.target + m.target, project: a.project + m.project, opportunity: a.opportunity + m.opportunity };
           },
-          { amount: 0, target: 0 }
+          { amount: 0, target: 0, project: 0, opportunity: 0 }
         );
       });
     });

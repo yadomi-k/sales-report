@@ -1135,3 +1135,13 @@ table.report.people tr.r-total td.k-half,
 table.report.people tr.r-total td.k-total {
   background: var(--k-target);
 }
+
+/* プランニング課：金額の内訳（うちプロジェクト／うち商談分割） */
+table.report.people tr.r-breakdown td {
+  color: var(--color-text-dim);
+  font-size: 0.6875rem;
+}
+table.report.people th.sub-label {
+  font-size: 0.6875rem;
+  color: var(--color-text-dim);
+}

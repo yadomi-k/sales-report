@@ -106,10 +106,16 @@ window.AppConfig = {
       team: "Team_at_the_time__c", // 当時のチーム
     },
     // 成績予測を分ける単位（課の名前で判定）※課の正式な名前は要確認
+    // 商談分割の所属は、分割の所有者のユーザの今の部・課・チームで判定する
+    // opportunity: true の課は、実績に「商談分割の金額」も足し、目標は「商談の【個人目標】」を使う
+    // （プロジェクト管理の目標は使わない）。商談分割・個人目標の項目はSalesタブと同じ設定を使う
     sections: [
       { key: "SD", label: "SD", userSection: "スペースデザイン課" },
       { key: "GD", label: "GD", userSection: "グラフィックデザイン課" },
+      { key: "PL", label: "プランニング", userSection: "プランニング課", opportunity: true },
     ],
+    // 商談分割から実績に足すのは、この受注確度のものだけ（受注のみ。見込みも含めるなら "高" などを足す）
+    opportunityLevels: ["受注"],
     // 期の番号（2026年 = 48期）
     periodOffset: 1978,
   },
