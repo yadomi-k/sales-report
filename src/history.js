@@ -252,7 +252,7 @@ window.AppHistory = (function () {
 
     // 上部の集計：区分ごとに、期間中に増えた・減った金額（終わりの時点 − 始まりの時点）
     var tiles = cfg().history.groups.map(function (g) {
-      var t = { key: g.key, label: g.label, stages: g.stages, delta: 0, inCount: 0, outCount: 0, amountUp: 0, amountDown: 0 };
+      var t = { key: g.key, label: g.label, stages: g.stages, invert: !!g.invert, delta: 0, inCount: 0, outCount: 0, amountUp: 0, amountDown: 0 };
       scoped.forEach(function (s) {
         var a = s.gStart === g.key ? s.start.amount : 0;
         var b = s.gEnd === g.key ? s.end.amount : 0;
@@ -260,6 +260,8 @@ window.AppHistory = (function () {
         if (s.gStart !== g.key && s.gEnd === g.key) t.inCount++;
         if (s.gStart === g.key && s.gEnd !== g.key) t.outCount++;
       });
+      // 失注など（invert）は、売上への影響として符号を逆にする（失注が増えたら▲）
+      if (t.invert) t.delta = -t.delta;
       return t;
     });
 
@@ -287,9 +289,21 @@ window.AppHistory = (function () {
       var list = [];
       if (first && last) for (var ym = first; ym <= last && list.length < 36; ym = AppAgg.ymAdd(ym, 1)) list.push(map[ym] || { ym: ym, all: 0, count: 0 });
       if (map.none) list.push(map.none); // 売上日が空欄の商談
+      var inverted = cfg().history.groups
+        .filter(function (g) {
+          return g.invert;
+        })
+        .map(function (g) {
+          return g.key;
+        });
       list.forEach(function (m) {
         keys.forEach(function (k) {
           m[k] = m[k] || 0;
+          // 失注など（invert）は、売上への影響として符号を逆にする
+          if (inverted.indexOf(k) >= 0 && !m["_inv_" + k]) {
+            m[k] = -m[k];
+            m["_inv_" + k] = true;
+          }
         });
       });
       return list;

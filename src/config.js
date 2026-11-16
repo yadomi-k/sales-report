@@ -59,7 +59,8 @@ window.AppConfig = {
     groups: [
       { key: "info", label: "情報", stages: ["タネ", "案件詳細入手", "着手承認済み", "見積提出済み"] },
       { key: "won", label: "受注", stages: ["受注", "制作進行", "請求", "完了"] },
-      { key: "lost", label: "失注", stages: ["失注", "辞退", "消滅", "企画開発費"] },
+      // invert：失注が増える＝売上が減るので、増えた金額を▲（赤）で表示する
+      { key: "lost", label: "失注", stages: ["失注", "辞退", "消滅", "企画開発費"], invert: true },
     ],
   },
 

@@ -533,7 +533,10 @@ function HistoryPage({ mode, active }) {
                     }}
                     title={t.stages.join("・")}
                   >
-                    <span className="hi-tile-label">{t.label}</span>
+                    <span className="hi-tile-label">
+                      {t.label}
+                      {t.invert && <span className="hi-tile-note">増えると売上が減るため▲で表示</span>}
+                    </span>
                     <span className={"hi-tile-value " + (t.delta > 0 ? "hi-up" : t.delta < 0 ? "hi-down" : "")}>{hiSigned(t.delta)}円</span>
                     <span className="hi-tile-sub">
                       入った {t.inCount}件／出た {t.outCount}件

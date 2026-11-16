@@ -1342,3 +1342,9 @@ table.history td.num span {
   height: 16rem;
   margin-top: 0.5rem;
 }
+
+.hi-tile-note {
+  margin-left: 0.5rem;
+  font-weight: 400;
+  font-size: 0.65625rem;
+}
