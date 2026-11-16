@@ -81,13 +81,21 @@ VISORA     比較する日（例：1か月前）以前で、一番新しい写�
 
 ## 4. 使っている分割タイプのIDを調べる
 
-**開発者コンソール → Query Editor** で次を実行し、`Id` を控えます（フローで使います）。
+フローで「売上金額」の商談分割だけを取るために、**商談分割タイプのID**（`149` から始まる18文字）を調べます。
+無効な分割タイプの分割レコードが残っていても、写しに二重に入らないようにするためです。
 
-```sql
-SELECT Id, MasterLabel FROM OpportunitySplitType WHERE IsActive = true
-```
+1. 右上の **歯車マーク → 開発者コンソール** を開く
+2. 下のタブから **Query Editor** を選ぶ
+3. 次を貼り付けて **Execute**
+   ```sql
+   SELECT Id, MasterLabel FROM OpportunitySplitType WHERE IsActive = true
+   ```
+4. 「売上金額」の行の **Id**（例：`1490K000000XXXXQAA`）をコピーする
 
-（「売上金額」の1件が出るはずです）
+- 2件以上出た場合：「売上金額」の行のIdを使う
+- 0件の場合：`WHERE IsActive = true` を消して実行し、「売上金額」の行のIdを使う
+
+このIdは、手順 5-3 の「レコードを取得」の条件 `SplitTypeId` 次の文字列と一致する（値）にそのまま貼り付けます。
 
 ---
 
@@ -107,7 +115,7 @@ SELECT Id, MasterLabel FROM OpportunitySplitType WHERE IsActive = true
 ### 5-2. リソース（新規リソース）
 | 種類 | API参照名 | 内容 |
 |---|---|---|
-| 数式（Boolean） | `fx_IsTargetYear` | `AND(NOT(ISBLANK({!$Record.EstimatedSaleDate__c})), YEAR({!$Record.EstimatedSaleDate__c}) >= YEAR({!$Flow.CurrentDate}), YEAR({!$Record.EstimatedSaleDate__c}) <= YEAR({!$Flow.CurrentDate}) + 1)` |
+| 数式（Boolean） | `fx_IsTargetYear`（今年・来年が売上日の商談だけを対象にする。今年分は1か月後の先月比と1年後の昨対比に、来年分は年明けの先月比に使う） | `AND(NOT(ISBLANK({!$Record.EstimatedSaleDate__c})), YEAR({!$Record.EstimatedSaleDate__c}) >= YEAR({!$Flow.CurrentDate}), YEAR({!$Record.EstimatedSaleDate__c}) <= YEAR({!$Flow.CurrentDate}) + 1)` |
 | 変数（レコード） | `varSnap` | オブジェクト：VISORAスナップショット、1件 |
 | 変数（レコード） | `colSnaps` | オブジェクト：VISORAスナップショット、**複数の値を許可（コレクション）** |
 
@@ -115,7 +123,7 @@ SELECT Id, MasterLabel FROM OpportunitySplitType WHERE IsActive = true
 1. **決定**「今年・来年の商談か」：結果「対象」＝ `fx_IsTargetYear` が `True`。デフォルトの結果は何もしない（終了）
 2. **レコードを取得**「商談分割を取得」（「対象」の後）
    - オブジェクト：商談分割（OpportunitySplit）
-   - 条件：`OpportunityId` 次の文字列と一致する `{!$Record.Id}`、かつ `SplitTypeId` 次の文字列と一致する（手順4のId）
+   - 条件：`OpportunityId` 次の文字列と一致する `{!$Record.Id}`、かつ `SplitTypeId` 次の文字列と一致する **手順4で調べた商談分割タイプのId**（`149`から始まる18文字）
    - 保存するレコード数：**すべてのレコード**、項目：自動的に保存
 3. **ループ**「分割ごと」：コレクション＝手順2の商談分割
 4. **割り当て**「写しを作る」（ループの中）
