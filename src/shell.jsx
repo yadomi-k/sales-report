@@ -5,9 +5,22 @@ const TABS = [
   { key: "creative", label: "Creative" },
 ];
 
+// Salesタブの中の画面：売上レポート／変更履歴（週次）
+const SALES_VIEWS = [
+  { key: "report", label: "売上レポート", hash: "sales" },
+  { key: "history", label: "変更履歴（週次）", hash: "sales-history" },
+];
+
+function readHash() {
+  return (location.hash || "").replace("#", "");
+}
 function readTab() {
-  const h = (location.hash || "").replace("#", "");
+  const h = readHash();
+  if (h === "sales-history") return "sales";
   return TABS.some((t) => t.key === h) ? h : "sales";
+}
+function readSalesView() {
+  return readHash() === "sales-history" ? "history" : "report";
 }
 
 function Shell({ mode, profile, onLogout }) {
@@ -15,26 +28,37 @@ function Shell({ mode, profile, onLogout }) {
   const [tab, setTab] = useState(readTab);
   // Creativeタブは、プロジェクト管理の金額を参照できる人にだけ出す（Salesforceの権限で判定）
   const [creative, setCreative] = useState({ checking: true, ok: false });
-  const [visited, setVisited] = useState({ [readTab()]: true });
+  const [salesView, setSalesView] = useState(readSalesView);
+  const [visited, setVisited] = useState({ [readTab()]: true, [readSalesView()]: true });
 
   useEffect(() => {
     AppCreative.checkAccess(mode).then((r) => setCreative({ checking: false, ok: r.ok, reason: r.reason }));
-    const onHash = () => setTab(readTab());
+    const onHash = () => {
+      setTab(readTab());
+      setSalesView(readSalesView());
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
-    setVisited((v) => (v[tab] ? v : Object.assign({}, v, { [tab]: true })));
-  }, [tab]);
+    setVisited((v) => (v[tab] && v[salesView] ? v : Object.assign({}, v, { [tab]: true, [salesView]: true })));
+  }, [tab, salesView]);
 
   // 権限のない人が #creative を開いた場合は Sales に戻す
   const current = tab === "creative" && !creative.checking && !creative.ok ? "sales" : tab;
   const go = (k) => {
+    const hash = k === "sales" && salesView === "history" ? "sales-history" : k;
     try {
-      history.replaceState(null, "", "#" + k);
+      history.replaceState(null, "", "#" + hash);
     } catch (e) {}
     setTab(k);
+  };
+  const goSales = (v) => {
+    try {
+      history.replaceState(null, "", "#" + SALES_VIEWS.find((x) => x.key === v).hash);
+    } catch (e) {}
+    setSalesView(v);
   };
   const tabs = TABS.filter((t) => t.key !== "creative" || creative.ok);
 
@@ -61,7 +85,17 @@ function Shell({ mode, profile, onLogout }) {
           )}
         </div>
       </header>
-      {(visited.sales || current === "sales") && <SalesPage mode={mode} active={current === "sales"} />}
+      {current === "sales" && (
+        <nav className="subtabs" aria-label="Salesの画面">
+          {SALES_VIEWS.map((v) => (
+            <button key={v.key} type="button" className={"subtab" + (salesView === v.key ? " on" : "")} aria-current={salesView === v.key ? "page" : undefined} onClick={() => goSales(v.key)}>
+              {v.label}
+            </button>
+          ))}
+        </nav>
+      )}
+      {(visited.report || (current === "sales" && salesView === "report")) && <SalesPage mode={mode} active={current === "sales" && salesView === "report"} />}
+      {(visited.history || (current === "sales" && salesView === "history")) && <HistoryPage mode={mode} active={current === "sales" && salesView === "history"} />}
       {creative.ok && (visited.creative || current === "creative") && <CreativePage mode={mode} active={current === "creative"} />}
     </div>
   );

@@ -47,6 +47,20 @@ window.AppConfig = {
     competition: "Competition_classification__c", // コンペ区分（相見積り・デザインコンペ・企画コンペ）
     tags: "", // タグ（未確認のため未使用）
     salesType: "", // 営業種別（未確認のため未使用）
+    // 商談の「売上金額」（変更履歴で使う）※API参照名は要確認
+    salesAmount: "SalesAmount__c",
+  },
+
+  // 変更履歴（週次）：商談の項目履歴（OpportunityFieldHistory）から「売上金額」「案件ステージ」の変更を読む
+  // Salesforceで、商談の この2項目の「項目履歴管理」をオンにしておく必要がある（docs/history-setup.md）
+  history: {
+    days: 7, // 初期表示の期間（今日から何日前まで）
+    // 上部の集計の区分（ステージ）
+    groups: [
+      { key: "info", label: "情報", stages: ["タネ", "案件詳細入手", "着手承認済み", "見積提出済み"] },
+      { key: "won", label: "受注", stages: ["受注", "制作進行", "請求", "完了"] },
+      { key: "lost", label: "失注", stages: ["失注", "辞退", "消滅", "企画開発費"] },
+    ],
   },
 
   // 目標：レコードタイプ【個人目標】かつステージ「目標」の商談（ステージが目標の商談は実績の集計から除く）
