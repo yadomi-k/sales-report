@@ -29,7 +29,68 @@ function defaultFilters() {
     salesTypes: [],
     groupBy: "",
     sort: "name",
+    compare: "none", // 比較：none | month（1か月前の時点）| yearFinal（前年同期・確定値）| yearAt（1年前の時点）
   };
+}
+
+// ---------------------------------------------------------------
+// 過去との比較
+// ---------------------------------------------------------------
+const COMPARE_OPTIONS = [
+  { key: "none", label: "比較しない" },
+  { key: "month", label: "1か月前の時点（先月比）", short: "1か月前" },
+  { key: "yearFinal", label: "前年同期（確定値）", short: "前年同期" },
+  { key: "yearAt", label: "1年前の時点（昨対比）", short: "1年前時点" },
+];
+function ymd(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function monthsAgo(n) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return ymd(d);
+}
+// 比較の数字を読み込む。返す形：{ data, shift, label, note, snapshotDate }
+//   shift：比較する期間のずれ（月数）。前年は -12
+function loadCompare(f, mode, main) {
+  const opt = COMPARE_OPTIONS.find((o) => o.key === f.compare);
+  const label = opt ? opt.short : "";
+  const isDemo = mode === "demo";
+  const src = isDemo ? AppDemo : AppSF;
+  const shiftFrom = AppAgg.ymAdd(f.fromYM, -12);
+  const shiftTo = AppAgg.ymAdd(f.toYM, -12);
+  if (f.compare === "yearFinal") {
+    // 前年の同じ月の、今のデータ（確定した実績）
+    return src.load(shiftFrom, shiftTo).then((d) => ({ data: d, shift: -12, label, note: "前年 " + shiftFrom.replace("-", "/") + "〜" + shiftTo.replace("-", "/") + " の今の数字" }));
+  }
+  const snapshotFail = (e) => {
+    const msg = String((e && e.message) || "");
+    if (/VISORA_Snapshot__c|sObject type|INVALID_TYPE/i.test(msg) || (e && e.code === "INVALID_TYPE"))
+      return { data: null, label, note: "過去の写し（スナップショット）の仕組みがまだSalesforceにありません（設定方法は docs/snapshot-setup.md）。" };
+    throw e;
+  };
+  if (f.compare === "month") {
+    const day = monthsAgo(1);
+    return src
+      .loadSnapshot(day, f.fromYM, f.toYM)
+      .then((snap) =>
+        snap.snapshotDate
+          ? { data: { users: main.users, splits: snap.splits, targets: main.targets }, shift: 0, label, snapshotDate: snap.snapshotDate, note: snap.snapshotDate.replace(/-/g, "/") + " 時点の写しと比較" }
+          : { data: null, label, note: day.replace(/-/g, "/") + " 以前の写しがまだありません。写しを取り始めて1か月たつと使えます。" }
+      )
+      .catch(snapshotFail);
+  }
+  if (f.compare === "yearAt") {
+    const day = monthsAgo(12);
+    return Promise.all([src.loadSnapshot(day, shiftFrom, shiftTo), src.load(shiftFrom, shiftTo)])
+      .then(([snap, prev]) =>
+        snap.snapshotDate
+          ? { data: { users: main.users, splits: snap.splits, targets: prev.targets }, shift: -12, label, snapshotDate: snap.snapshotDate, note: snap.snapshotDate.replace(/-/g, "/") + " 時点の写し（前年 " + shiftFrom.replace("-", "/") + "〜" + shiftTo.replace("-", "/") + "）と比較" }
+          : { data: null, label, note: day.replace(/-/g, "/") + " 以前の写しがまだありません。写しを取り始めて1年たつと使えます。それまでは「前年同期（確定値）」をお使いください。" }
+      )
+      .catch(snapshotFail);
+  }
+  return Promise.resolve(null);
 }
 
 function readSaved() {
@@ -105,7 +166,7 @@ function writePref(key, v) {
   } catch (e) {}
 }
 
-const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-org": true, "cr-display": true };
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, compare: true, display: true, "cr-period": true, "cr-org": true, "cr-display": true };
 
 function SidebarSection({ id, title, active, children }) {
   const [open, setOpen] = useState(() => {
@@ -322,6 +383,25 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
         </SidebarSection>
       )}
 
+      <SidebarSection id="compare" title="過去との比較" active={draft.compare !== "none" ? (COMPARE_OPTIONS.find((o) => o.key === draft.compare) || {}).short : ""}>
+        <div className="stack">
+          <label className="mini-field">
+            <span>比較する時点</span>
+            <select id="f-compare" value={draft.compare} onChange={(e) => set({ compare: e.target.value })}>
+              {COMPARE_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="sidebar-hint">
+            表の各確度に「比較時点の金額」と「増減」の行が加わり、グラフに比較時点の数字が点線で重なります。
+            「1か月前」「1年前」は、Salesforceで毎日取っている写しと比べます。「前年同期」は前年の同じ月の今の数字と比べます。
+          </div>
+        </div>
+      </SidebarSection>
+
       <SidebarSection id="display" title="表示" active={draft.groupBy ? groupLabels[draft.groupBy] : ""}>
         <div className="stack">
           <label className="mini-field">
@@ -432,8 +512,34 @@ function ReportChart({ result, levels, metric }) {
         pointRadius: 3,
         borderWidth: 2,
         order: 0,
+        stack: "target", // 棒の積み上げに混ざらないように
       },
     ].concat(
+      // 比較：比較時点の「受注〜選んだ確度まで」の積上を点線で重ねる
+      result.compare
+        ? (() => {
+            const lowest = LEVELS.filter((l) => levels.indexOf(l) >= 0).pop();
+            const cc = idx.map((i) => result.compare.total[i]);
+            return [
+              {
+                type: "line",
+                label: result.compare.label + "（" + (lowest === "受注" ? "受注" : "受注〜" + lowest) + "）",
+                id: "compare",
+                lowest,
+                data: cc.map((c) => (c ? c.cum[lowest][key] : 0)),
+                borderColor: "#5b6470",
+                borderDash: [6, 4],
+                backgroundColor: "#fff",
+                pointBackgroundColor: "#fff",
+                pointBorderColor: "#5b6470",
+                pointRadius: 3,
+                borderWidth: 2,
+                order: 0,
+                stack: "compare",
+              },
+            ];
+          })()
+        : [],
       LEVELS.filter((l) => levels.indexOf(l) >= 0).map((l) => ({
         type: "bar",
         label: l === "受注" ? "受注" : "受注確度（" + l + "）",
@@ -457,6 +563,11 @@ function ReportChart({ result, levels, metric }) {
             label: (ctx) => {
               const c = cells[ctx.dataIndex];
               const id = ctx.dataset.id;
+              if (id === "compare") {
+                const now = c.cum[ctx.dataset.lowest][key];
+                const d = now - ctx.raw;
+                return [ctx.dataset.label + ": " + yen(ctx.raw), "増減（今−" + result.compare.label + "）: " + (d >= 0 ? "+" : "▲") + yen(Math.abs(d))];
+              }
               if (id === "target") {
                 const lines = [ctx.dataset.label + ": " + yen(c.target[key])];
                 if (levels.indexOf("受注") >= 0) lines.push("差分（受注−目標）: " + yen(c.cum["受注"][key] - c.target[key]));
@@ -605,8 +716,8 @@ function SalesPeopleTable({ teams, columns, levels }) {
   );
 }
 
-function ReportTable({ title, cells, columns, levels }) {
-  const rows = AppAgg.tableRows(cells, levels);
+function ReportTable({ title, cells, columns, levels, cmp, cmpLabel }) {
+  const rows = AppAgg.tableRows(cells, levels, cmp ? { label: cmpLabel, cells: cmp } : null);
   return (
     <div className="table-block">
       {title && <div className="table-title">{title}</div>}
@@ -643,7 +754,16 @@ function ReportTable({ title, cells, columns, levels }) {
                 {r.cells.map((c, i) => (
                   <td
                     key={i}
-                    className={(i % 2 === 0 ? "sales" : "profit") + " k-" + columns[Math.floor(i / 2)].kind + (i % 2 === 0 ? " col-start" : "") + (c.red ? " red" : "") + (c.blue ? " blue" : "")}
+                    className={
+                      (i % 2 === 0 ? "sales" : "profit") +
+                      " k-" + columns[Math.floor(i / 2)].kind +
+                      (i % 2 === 0 ? " col-start" : "") +
+                      (c.red ? " red" : "") +
+                      (c.blue ? " blue" : "") +
+                      (c.up ? " up" : "") +
+                      (c.down ? " down" : "")
+                    }
+                    title={c.kind === "diff" && c.ratio != null ? "増減率 " + (c.ratio * 100).toFixed(1) + "%" : undefined}
                   >
                     {AppAgg.fmtCell(c)}
                   </td>
@@ -780,6 +900,7 @@ function conditionSummary(f, aff) {
   if (f.owner) out.push(["担当者", aff(f.owner).name]);
   out.push(["受注確度", f.levels.join("、")]);
   if (f.stages.length) out.push(["案件ステージ", f.stages.join("、")]);
+  if (f.compare && f.compare !== "none") out.push(["比較", (COMPARE_OPTIONS.find((o) => o.key === f.compare) || {}).label || ""]);
   if (f.competitions.length) out.push(["コンペ区分", f.competitions.join("、")]);
   if (f.tags.length) out.push(["タグ", f.tags.join("、")]);
   if (f.salesTypes.length) out.push(["営業種別", f.salesTypes.join("、")]);
@@ -808,6 +929,7 @@ function SalesPage({ mode, active }) {
   const [metric, setMetric] = useState("amount");
   const [saved, setSaved] = useState(readSaved);
   const [exporting, setExporting] = useState(false);
+  const [cmp, setCmp] = useState(null); // 比較の数字 { key, label, note, data, shift, snapshotDate }
   const [sidebarClosed, setSidebarClosed] = useState(() => !!readPref(SIDEBAR_PREF, false));
   const [panelOpen, setPanelOpen] = useState(false);
   useEffect(() => {
@@ -827,30 +949,51 @@ function SalesPage({ mode, active }) {
       }
       setError("");
       const key = f.fromYM + "|" + f.toYM;
-      if (key === loadedKey && data) {
+      const cmpKey = key + "|" + f.compare;
+      const haveMain = key === loadedKey && data;
+      const haveCmp = f.compare === "none" || (cmp && cmp.key === cmpKey);
+      if (haveMain && haveCmp) {
         setApplied(f);
         return;
       }
       setLoading(true);
       setProgress("");
-      const loader = isDemo ? AppDemo.load(f.fromYM, f.toYM) : AppSF.load(f.fromYM, f.toYM, (n) => setProgress(n.toLocaleString() + "件 読み込み済み"));
+      const loader = haveMain
+        ? Promise.resolve(data)
+        : isDemo
+        ? AppDemo.load(f.fromYM, f.toYM)
+        : AppSF.load(f.fromYM, f.toYM, (n) => setProgress(n.toLocaleString() + "件 読み込み済み"));
       loader
         .then((d) => {
           setData(d);
           setLoadedKey(key);
-          setApplied(f);
+          if (haveCmp) return;
+          // 比較の数字（1か月前・前年など）を読み込む
+          return loadCompare(f, mode, d).then((c) => setCmp(c ? Object.assign({ key: cmpKey }, c) : null));
         })
+        .then(() => setApplied(f))
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     },
-    [draft, loadedKey, data, isDemo]
+    [draft, loadedKey, data, isDemo, cmp]
   );
 
   useEffect(() => {
     search(draft);
   }, []); // 最初に今年のデータを表示する
 
-  const result = useMemo(() => (data && applied ? AppAgg.build(data, applied, applied) : null), [data, applied]);
+  const result = useMemo(() => {
+    if (!data || !applied) return null;
+    const r = AppAgg.build(data, applied, applied);
+    // 比較：同じ条件で、比較する時点（または前年の同じ月）の数字を集計して横に並べる
+    if (applied.compare !== "none" && cmp && cmp.data) {
+      const v = Object.assign({}, applied, { fromYM: AppAgg.ymAdd(applied.fromYM, cmp.shift), toYM: AppAgg.ymAdd(applied.toYM, cmp.shift) });
+      const c = AppAgg.build(cmp.data, applied, v);
+      r.compare = { label: cmp.label, total: c.total.cells, groups: {} };
+      c.groups.forEach((g) => (r.compare.groups[g.key] = g.cells));
+    }
+    return r;
+  }, [data, applied, cmp]);
   const opts = useMemo(() => (data ? AppAgg.options(data) : { stages: [], competitions: [], tags: [], salesTypes: [] }), [data]);
   const users = useMemo(() => {
     if (!data) return [];
@@ -909,6 +1052,7 @@ function SalesPage({ mode, active }) {
     if (applied.levels.length < LEVELS.length) chips.push("確度：" + applied.levels.join("・"));
     if (applied.stages.length) chips.push("ステージ：" + applied.stages.length + "件");
     if (applied.competitions.length) chips.push(applied.competitions.join("・"));
+    if (applied.compare !== "none") chips.push("比較：" + ((COMPARE_OPTIONS.find((o) => o.key === applied.compare) || {}).short || ""));
     if (applied.groupBy) chips.push({ honbu: "本部ごと", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" }[applied.groupBy]);
   }
 
@@ -974,6 +1118,11 @@ function SalesPage({ mode, active }) {
             </div>
           )}
           {data && data.targetCheck && !loading && <TargetCheck check={data.targetCheck} />}
+          {applied && applied.compare !== "none" && cmp && !loading && (
+            <div className={"alert " + (cmp.data ? "info" : "warn")}>
+              比較（{cmp.label}）：{cmp.note}
+            </div>
+          )}
 
           {result && (
             <section className="card">
@@ -1021,9 +1170,24 @@ function SalesPage({ mode, active }) {
               {(view === "both" || view === "chart") && <ReportChart result={result} levels={applied.levels} metric={metric} />}
               {(view === "both" || view === "table") && (
                 <>
-                  <ReportTable title={result.groups.length ? result.total.label : ""} cells={result.total.cells} columns={result.columns} levels={applied.levels} />
+                  <ReportTable
+                    title={result.groups.length ? result.total.label : ""}
+                    cells={result.total.cells}
+                    columns={result.columns}
+                    levels={applied.levels}
+                    cmp={result.compare && result.compare.total}
+                    cmpLabel={result.compare && result.compare.label}
+                  />
                   {result.groups.map((g) => (
-                    <ReportTable key={g.key} title={g.label} cells={g.cells} columns={result.columns} levels={applied.levels} />
+                    <ReportTable
+                      key={g.key}
+                      title={g.label}
+                      cells={g.cells}
+                      columns={result.columns}
+                      levels={applied.levels}
+                      cmp={result.compare && result.compare.groups[g.key]}
+                      cmpLabel={result.compare && result.compare.label}
+                    />
                   ))}
                   {result.peopleTeams ? (
                     result.peopleTeams.length > 0 && <SalesPeopleTable teams={result.peopleTeams} columns={result.columns} levels={applied.levels} />

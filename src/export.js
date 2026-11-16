@@ -37,10 +37,17 @@ window.AppExport = (function () {
   var BORDER = { top: thin, left: thin, bottom: thin, right: thin };
 
   function numFmt(kind) {
+    if (kind === "diff") return '+#,##0;"▲"#,##0;"±0"'; // 増減：増えたら＋、減ったら▲
     return kind === "pct" ? "0.0%" : "#,##0";
   }
+  // 比較の数字（result.compare）から、その表の比較時点のセルを取り出す
+  function cmpFor(result, key) {
+    if (!result.compare) return null;
+    var cells = key === "all" ? result.compare.total : result.compare.groups[key];
+    return cells ? { label: result.compare.label, cells: cells } : null;
+  }
 
-  function writeTable(ws, startRow, title, cells, columns, levels) {
+  function writeTable(ws, startRow, title, cells, columns, levels, cmp) {
     var r = startRow;
     ws.getCell(r, 1).value = title;
     ws.getCell(r, 1).font = { bold: true, size: 12 };
@@ -65,7 +72,7 @@ window.AppExport = (function () {
       }
     });
     r += 2;
-    var rows = AppAgg.tableRows(cells, levels);
+    var rows = AppAgg.tableRows(cells, levels, cmp);
     rows.forEach(function (row) {
       var isTarget = row.type === "target";
       var bc = ws.getCell(r, 1);
@@ -92,8 +99,9 @@ window.AppExport = (function () {
         else if (kind !== "month") x.fill = fill(COLORS.sum[kind]);
         else if (i % 2 === 0) x.fill = fill(COLORS.sales);
         if (kind === "total") x.font = Object.assign({}, x.font || {}, { bold: true });
-        if (cell.red) x.font = { color: { argb: COLORS.red } };
-        else if (cell.blue) x.font = { color: { argb: COLORS.blue } };
+        if (cell.red || cell.down) x.font = { color: { argb: COLORS.red } };
+        else if (cell.blue || cell.up) x.font = { color: { argb: COLORS.blue } };
+        if (row.type === "cmp") x.font = Object.assign({}, x.font || {}, { color: { argb: "FF666666" } });
       });
       r++;
     });
@@ -128,9 +136,9 @@ window.AppExport = (function () {
       r++;
     });
     r++;
-    r = writeTable(ws, r, result.total.label, result.total.cells, result.columns, levels) + 1;
+    r = writeTable(ws, r, result.total.label, result.total.cells, result.columns, levels, cmpFor(result, "all")) + 1;
     result.groups.forEach(function (g) {
-      r = writeTable(ws, r, g.label, g.cells, result.columns, levels) + 1;
+      r = writeTable(ws, r, g.label, g.cells, result.columns, levels, cmpFor(result, g.key)) + 1;
     });
 
     // 担当者別（部・課・チームで絞り込んだときだけ）
@@ -281,10 +289,10 @@ window.AppExport = (function () {
         h2.push("売上", "利益");
       });
       lines.push(h1, h2);
-      AppAgg.tableRows(t.cells, levels).forEach(function (row) {
+      AppAgg.tableRows(t.cells, levels, cmpFor(result, t.key)).forEach(function (row) {
         var line = [row.type === "target" || row.blockFirst ? row.block : "", row.label];
         row.cells.forEach(function (c) {
-          line.push(c.v == null ? "" : c.kind === "pct" ? (c.v * 100).toFixed(1) + "%" : c.kind === "count" ? c.v || "" : Math.round(c.v));
+          line.push(c.v == null ? "" : c.kind === "pct" ? (c.v * 100).toFixed(1) + "%" : c.kind === "count" ? c.v || "" : c.kind === "diff" ? (c.v > 0 ? "+" : "") + Math.round(c.v) : Math.round(c.v));
         });
         lines.push(line);
       });

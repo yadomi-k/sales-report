@@ -224,7 +224,8 @@ window.AppAgg = (function () {
 
   // 表の行（画面とExcelで共通）。各行の cells は「列ごとに [売上, 利益] の2つ」を平らに並べたもの
   // cell: { v, kind: "yen" | "pct" | "count", red, blue }
-  function tableRows(cells, levels) {
+  // cmp：比較する時点の数字 { label: "1か月前", cells }（なければ比較の行を出さない）
+  function tableRows(cells, levels, cmp) {
     var rows = [];
     rows.push({
       block: "確度",
@@ -249,6 +250,38 @@ window.AppAgg = (function () {
             ];
           }),
         },
+      ];
+      // 比較：金額の行のすぐ下に「比較時点の金額」と「増減」を入れる
+      if (cmp && cmp.cells) {
+        blockRows.push(
+          {
+            label: cmp.label,
+            type: "cmp",
+            cells: flatPair(cells, cmp.cells, function (c, p) {
+              var y = p ? p.cum[l] : { amount: 0, profit: 0 };
+              return [
+                { v: y.amount, kind: "yen" },
+                { v: y.profit, kind: "yen" },
+              ];
+            }),
+          },
+          {
+            label: "増減",
+            type: "diff",
+            cells: flatPair(cells, cmp.cells, function (c, p) {
+              var x = c.cum[l];
+              var y = p ? p.cum[l] : { amount: 0, profit: 0 };
+              var da = x.amount - y.amount;
+              var dp = x.profit - y.profit;
+              return [
+                { v: da, kind: "diff", up: da > 0, down: da < 0, ratio: ratio(da, y.amount) },
+                { v: dp, kind: "diff", up: dp > 0, down: dp < 0, ratio: ratio(dp, y.profit) },
+              ];
+            }),
+          }
+        );
+      }
+      blockRows.push(
         {
           label: won ? "達成率" : "積上達成率",
           type: "rate",
@@ -264,8 +297,8 @@ window.AppAgg = (function () {
             var x = c.cum[l];
             return [{ v: x.count, kind: "count", blue: true }, { v: ratio(x.profit, x.amount), kind: "pct" }];
           }),
-        },
-      ];
+        }
+      );
       blockRows.forEach(function (r, i) {
         r.block = l;
         r.blockFirst = i === 0;
@@ -274,6 +307,13 @@ window.AppAgg = (function () {
       });
     });
     return rows;
+  }
+  function flatPair(cells, other, fn) {
+    var out = [];
+    cells.forEach(function (c, i) {
+      out.push.apply(out, fn(c, other[i]));
+    });
+    return out;
   }
   function flat(cells, fn) {
     var out = [];
@@ -434,6 +474,7 @@ window.AppAgg = (function () {
   }
   function fmtCell(c) {
     if (c.kind === "pct") return fmtPct(c.v);
+    if (c.kind === "diff") return c.v > 0 ? "+" + fmtYen(c.v) : c.v < 0 ? "▲" + fmtYen(-c.v) : "±0";
     if (c.kind === "count") return c.v ? String(c.v) : "";
     return fmtYen(c.v);
   }

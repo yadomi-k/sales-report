@@ -162,5 +162,45 @@ window.AppDemo = (function () {
     return Promise.resolve(cache.users);
   }
 
-  return { load: load, loadUsers: loadUsers };
+  // デモ用の写し：今のデータから「その日の時点ではこうだった」状態を作る
+  //  ・その日より後に売上日が来る受注の一部は、まだ高・中だった
+  //  ・その日の時点ではまだ無かった商談がある
+  //  ・失注などの一部は、まだ中・低で残っていた
+  //  ・金額が少し違っていた商談がある
+  function loadSnapshot(targetDate, fromYM, toYM) {
+    if (!cache) cache = build();
+    var seed = Number(targetDate.replace(/-/g, "")) % 100000;
+    var hash = function (id, k) {
+      var h = seed + k * 131;
+      for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 1000003;
+      return (h % 1000) / 1000;
+    };
+    var splits = [];
+    cache.splits.forEach(function (sp) {
+      if (sp.ym < fromYM || sp.ym > toYM) return;
+      var x = Object.assign({}, sp);
+      var recent = sp.salesDate >= targetDate.slice(0, 7);
+      if (hash(sp.oppId, 1) < (recent ? 0.18 : 0.04)) return; // まだ無かった
+      if (x.level === "受注" && recent && hash(sp.oppId, 2) < 0.45) {
+        x.level = hash(sp.oppId, 3) < 0.6 ? "高" : "中";
+        x.stage = "見積提出済み";
+      } else if (x.level === "その他" && hash(sp.oppId, 4) < 0.6) {
+        x.level = hash(sp.oppId, 5) < 0.5 ? "中" : "低";
+        x.stage = "着手承認済み";
+      }
+      if (hash(sp.oppId, 6) < 0.25) {
+        var f = 0.85 + hash(sp.oppId, 7) * 0.45; // 1か月前は少なかった／多かった
+        x.amount = Math.round(x.amount * f);
+        x.profit = Math.round(x.profit * f);
+      }
+      splits.push(x);
+    });
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve({ snapshotDate: targetDate, splits: splits });
+      }, 200);
+    });
+  }
+
+  return { load: load, loadUsers: loadUsers, loadSnapshot: loadSnapshot };
 })();

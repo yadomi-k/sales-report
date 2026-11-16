@@ -177,5 +177,49 @@ window.AppSF = (function () {
     });
   }
 
-  return { load: load, loadUsers: loadUsers, classify: classify };
+  // ---------------------------------------------------------------
+  // 過去の写し（スナップショット）
+  // targetDate（"YYYY-MM-DD"）以前で一番新しい写しを探し、その日の商談分割を返す（形は splits と同じ）
+  // 写しがなければ { snapshotDate: null }
+  // ---------------------------------------------------------------
+  function loadSnapshot(targetDate, fromYM, toYM) {
+    var s = cfg().snapshot;
+    var o = cfg().opportunity;
+    var q1 = "SELECT " + s.date + " FROM " + s.object + " WHERE " + s.date + " <= " + targetDate + " ORDER BY " + s.date + " DESC LIMIT 1";
+    return AppSSO.query(q1).then(function (rows) {
+      if (!rows.length) return { snapshotDate: null, splits: [] };
+      var day = String(rows[0][s.date]).slice(0, 10);
+      var fields = ["Id", s.oppId, s.oppName, s.account, s.splitOwner, s.stage, s.possibility, s.salesDate, s.splitAmount, s.splitProfit, s.splitPct, s.competition];
+      var q2 =
+        "SELECT " + fields.join(", ") + " FROM " + s.object +
+        " WHERE " + s.date + " = " + day + " AND " + s.salesDate + " >= " + fromYM + "-01 AND " + s.salesDate + " <= " + lastDay(toYM);
+      return AppSSO.query(q2).then(function (list) {
+        var splits = [];
+        list.forEach(function (r) {
+          var level = classify(r[s.stage], r[s.possibility]);
+          if (!level) return;
+          var date = String(r[s.salesDate] || "").slice(0, 10);
+          splits.push({
+            oppId: r[s.oppId],
+            oppName: r[s.oppName] || "",
+            accountName: r[s.account] || "",
+            salesDate: date,
+            ym: date.slice(0, 7),
+            ownerId: r[s.splitOwner],
+            pct: num(r[s.splitPct]) / 100,
+            amount: num(r[s.splitAmount]),
+            profit: num(r[s.splitProfit]),
+            stage: r[s.stage] || "",
+            level: level,
+            competition: r[s.competition] || "",
+            tags: [],
+            salesType: "",
+          });
+        });
+        return { snapshotDate: day, splits: splits };
+      });
+    });
+  }
+
+  return { load: load, loadUsers: loadUsers, loadSnapshot: loadSnapshot, classify: classify };
 })();

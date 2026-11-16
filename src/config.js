@@ -123,6 +123,25 @@ window.AppConfig = {
     periodOffset: 1978,
   },
 
+  // 過去との比較：毎日取る「写し（スナップショット）」を保存するオブジェクト
+  // 作り方は docs/snapshot-setup.md。オブジェクト・項目は下のAPI参照名で作る
+  snapshot: {
+    object: "VISORA_Snapshot__c",
+    date: "SnapshotDate__c", // 取得日（日付）
+    oppId: "OpportunityId__c", // 商談ID
+    oppName: "OpportunityName__c", // 商談名
+    account: "AccountName__c", // 取引先名
+    oppOwner: "OpportunityOwnerId__c", // 商談所有者のユーザID
+    splitOwner: "SplitOwnerId__c", // 分割所有者のユーザID
+    stage: "StageName__c", // 案件ステージ
+    possibility: "Possibility__c", // 検索用受注確度（受注・高・中・低）
+    salesDate: "SalesDate__c", // 売上日
+    splitAmount: "SplitAmount__c", // 分割の金額
+    splitProfit: "SplitProfit__c", // 分割の利益額
+    splitPct: "SplitPercentage__c", // 分割の％
+    competition: "Competition__c", // コンペ区分
+  },
+
   defaults: {
     fiscalYearStartMonth: 1, // 年度は1月始まり
   },

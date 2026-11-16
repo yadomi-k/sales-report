@@ -1154,3 +1154,21 @@ table.report.people th.sub-label {
   color: var(--color-text-dim);
   margin-top: 0.0625rem;
 }
+
+/* 過去との比較：比較時点の金額（灰色）と増減（増えたら青、減ったら赤） */
+table.report tr.r-cmp td,
+table.report tr.r-cmp th.label {
+  color: var(--color-text-dim);
+  font-size: 0.6875rem;
+}
+table.report tr.r-diff th.label {
+  font-weight: 700;
+}
+table.report td.up {
+  color: #1d5fc4;
+  font-weight: 700;
+}
+table.report td.down {
+  color: #d32020;
+  font-weight: 700;
+}
