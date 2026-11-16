@@ -71,9 +71,31 @@ window.AppHistory = (function () {
       " AND CreatedDate >= " + fromDay + "T00:00:00+09:00" +
       (rts.length ? " AND Opportunity.RecordTypeId IN (" + rts.join(", ") + ")" : "") +
       " ORDER BY CreatedDate";
-    return Promise.all([AppSF.loadUsers(), AppSSO.query(soql)]).then(function (r) {
+    // 期間中に新規登録された商談（登録時の値は変更履歴に残らないため、商談から直接読む）
+    var oppFields = ["Id", "Name", "Account.Name", "OwnerId", "StageName", amt, o.salesDate, "CreatedDate", "CreatedBy.Name"];
+    if (poss) oppFields.push(poss);
+    var soqlNew =
+      "SELECT " + oppFields.join(", ") + " FROM Opportunity" +
+      " WHERE CreatedDate >= " + fromDay + "T00:00:00+09:00" +
+      (rts.length ? " AND RecordTypeId IN (" + rts.join(", ") + ")" : "") +
+      " AND StageName != " + AppSSO.soqlString(cfg().target.stageName || "目標");
+    return Promise.all([AppSF.loadUsers(), AppSSO.query(soql), AppSSO.query(soqlNew)]).then(function (r) {
       var opps = {};
       var changes = [];
+      r[2].forEach(function (op) {
+        opps[op.Id] = {
+          id: op.Id,
+          name: op.Name || "",
+          account: (op.Account && op.Account.Name) || "",
+          ownerId: op.OwnerId,
+          stage: op.StageName || "",
+          amount: num(op[amt]),
+          possibility: (poss && op[poss]) || "",
+          salesDate: String(op[o.salesDate] || "").slice(0, 10),
+          createdAt: new Date(op.CreatedDate),
+          createdBy: (op.CreatedBy && op.CreatedBy.Name) || "",
+        };
+      });
       r[1].forEach(function (h) {
         var op = h.Opportunity || {};
         if (!opps[h.OpportunityId])
@@ -143,6 +165,13 @@ window.AppHistory = (function () {
       });
       Object.keys(opps).forEach(function (id) {
         var op = opps[id];
+        // 一部の商談は、ここ数週間に新規登録されたことにする（最初から受注で登録された商談も含む）
+        if (rnd() < 0.05) {
+          var cd = addDays(today, -Math.floor(rnd() * 20));
+          op.createdAt = new Date(cd + "T" + pad2(9 + Math.floor(rnd() * 9)) + ":" + pad2(Math.floor(rnd() * 60)) + ":00+09:00");
+          op.createdBy = editors[Math.floor(rnd() * editors.length)];
+          return;
+        }
         if (rnd() > 0.16) return;
         // 変更した日時（今日から20日前まで）
         var when = function () {
@@ -188,6 +217,7 @@ window.AppHistory = (function () {
   function build(data, f) {
     var startT = startOf(f.from);
     var endT = endOf(f.to);
+    var excluded = cfg().history.excludeStages || [];
     var aff = (function () {
       var byId = {};
       data.users.forEach(function (u) {
@@ -206,17 +236,33 @@ window.AppHistory = (function () {
       if (f.owner && u.id !== f.owner) return false;
       return true;
     };
+    var salesOk = function (op) {
+      var ym = String(op.salesDate || "").slice(0, 7);
+      if (f.salesFrom && (!ym || ym < f.salesFrom)) return false;
+      if (f.salesTo && (!ym || ym > f.salesTo)) return false;
+      return true;
+    };
 
-    // 商談ごとに変更をまとめ、期間の始まり・終わりの時点の値を今の値から戻して求める
+    // 商談ごとに、期間の始まり・終わりの時点の値を、今の値から変更を戻して求める
+    //   isNew：期間中に新規登録された商談。始まりの時点は「まだ無い」（金額0）として扱い、登録時の値も求める
     var byOpp = {};
     data.changes.forEach(function (c) {
       (byOpp[c.oppId] = byOpp[c.oppId] || []).push(c);
     });
-    var summaries = [];
+    var ids = {};
     Object.keys(byOpp).forEach(function (id) {
+      ids[id] = 1;
+    });
+    Object.keys(data.opps).forEach(function (id) {
+      var op = data.opps[id];
+      if (op.createdAt && op.createdAt >= startT && op.createdAt <= endT) ids[id] = 1;
+    });
+    var summaries = [];
+    Object.keys(ids).forEach(function (id) {
       var op = data.opps[id];
       if (!op) return;
-      var list = byOpp[id].slice().sort(function (a, b) {
+      var isNew = !!(op.createdAt && op.createdAt >= startT && op.createdAt <= endT);
+      var list = (byOpp[id] || []).slice().sort(function (a, b) {
         return b.at - a.at; // 新しい順
       });
       var state = { stage: op.stage, amount: op.amount };
@@ -224,52 +270,71 @@ window.AppHistory = (function () {
       var end = null;
       list.forEach(function (c) {
         if (c.at > endT) {
-          // 期間の終わりより後の変更は、戻して「終わりの時点の値」にする
-          state[c.field] = c.oldValue;
+          state[c.field] = c.oldValue; // 期間の終わりより後の変更は戻す
           return;
         }
         if (!end) end = { stage: state.stage, amount: state.amount };
         if (c.at < startT) return;
-        // 変更した時点の、変更後の金額（ステージの変更行に出す）
         inWindow.push(Object.assign({}, c, { amountAt: state.amount, stageAt: state.stage }));
         state[c.field] = c.oldValue;
       });
-      if (!inWindow.length) return;
       if (!end) end = { stage: state.stage, amount: state.amount };
-      var start = { stage: state.stage, amount: state.amount };
-      var owner = aff(op.ownerId);
-      summaries.push({ opp: op, owner: owner, start: start, end: end, gStart: groupOf(start.stage), gEnd: groupOf(end.stage), changes: inWindow });
+      if (!isNew && !inWindow.length) return;
+      var initial = isNew ? { stage: state.stage, amount: state.amount } : null; // 登録時の値
+      var start = isNew ? { stage: "", amount: 0 } : { stage: state.stage, amount: state.amount };
+      // 企画開発費請求などは、一覧にも集計にも出さない
+      if (excluded.indexOf(end.stage) >= 0 || excluded.indexOf(start.stage) >= 0 || (initial && excluded.indexOf(initial.stage) >= 0)) return;
+      summaries.push({
+        opp: op,
+        owner: aff(op.ownerId),
+        isNew: isNew,
+        initial: initial,
+        start: start,
+        end: end,
+        gStart: isNew ? "none" : groupOf(start.stage),
+        gEnd: groupOf(end.stage),
+        changes: inWindow,
+      });
     });
 
-    // 売上日（月）の条件
-    var salesOk = function (op) {
-      var ym = String(op.salesDate || "").slice(0, 7);
-      if (f.salesFrom && (!ym || ym < f.salesFrom)) return false;
-      if (f.salesTo && (!ym || ym > f.salesTo)) return false;
-      return true;
-    };
     var scoped = summaries.filter(function (s) {
       return orgOk(s.owner) && salesOk(s.opp);
     });
+    var groups = cfg().history.groups;
+    var invert = {};
+    groups.forEach(function (g) {
+      invert[g.key] = !!g.invert;
+    });
 
-    // 上部の集計：区分ごとに、期間中に増えた・減った金額（終わりの時点 − 始まりの時点）
-    var tiles = cfg().history.groups.map(function (g) {
-      var t = { key: g.key, label: g.label, stages: g.stages, invert: !!g.invert, delta: 0, inCount: 0, outCount: 0, amountUp: 0, amountDown: 0 };
+    // 区分ごとの増減（1商談ぶん）
+    //   情報：新規登録された商談だけ（情報→受注などで減る分は数えない）
+    //   受注・失注：終わりの時点 − 始まりの時点（新規登録は始まりが0）
+    var contrib = function (s, key) {
+      if (key === "info") return s.isNew && s.gEnd === "info" ? s.end.amount : 0;
+      var v = (s.gEnd === key ? s.end.amount : 0) - (s.gStart === key ? s.start.amount : 0);
+      return invert[key] ? -v : v; // 失注は、増えたら売上が減るので▲
+    };
+    var involved = function (s, key) {
+      if (key === "info") return s.isNew && s.gEnd === "info";
+      return s.gStart === key || s.gEnd === key;
+    };
+
+    var tiles = groups.map(function (g) {
+      var t = { key: g.key, label: g.label, stages: g.stages, invert: !!g.invert, delta: 0, inCount: 0, outCount: 0, newCount: 0 };
       scoped.forEach(function (s) {
-        var a = s.gStart === g.key ? s.start.amount : 0;
-        var b = s.gEnd === g.key ? s.end.amount : 0;
-        t.delta += b - a;
-        if (s.gStart !== g.key && s.gEnd === g.key) t.inCount++;
+        t.delta += contrib(s, g.key);
+        if (s.gEnd === g.key && s.gStart !== g.key) {
+          t.inCount++;
+          if (s.isNew) t.newCount++;
+        }
         if (s.gStart === g.key && s.gEnd !== g.key) t.outCount++;
       });
-      // 失注など（invert）は、売上への影響として符号を逆にする（失注が増えたら▲）
-      if (t.invert) t.delta = -t.delta;
       return t;
     });
 
-    // 売上日の月ごとの増減（グラフ）：区分ごと（情報・受注・失注）と、全体（区分に関係ない売上金額の増減）
+    // 売上日の月ごとの増減（グラフ）
     var monthly = (function () {
-      var keys = cfg().history.groups.map(function (g) {
+      var keys = groups.map(function (g) {
         return g.key;
       });
       var map = {};
@@ -277,64 +342,73 @@ window.AppHistory = (function () {
         var ym = String(s.opp.salesDate || "").slice(0, 7) || "none";
         var m = map[ym] || (map[ym] = { ym: ym, all: 0, count: 0 });
         keys.forEach(function (k) {
-          m[k] = (m[k] || 0) + (s.gEnd === k ? s.end.amount : 0) - (s.gStart === k ? s.start.amount : 0);
+          m[k] = (m[k] || 0) + contrib(s, k);
         });
         m.all += s.end.amount - s.start.amount;
         m.count += 1;
       });
-      // 月の並び：売上日の条件があればその範囲、なければ変更があった月の範囲（最大36か月）
-      var yms = Object.keys(map).filter(function (k) {
-        return k !== "none";
-      }).sort();
+      var yms = Object.keys(map)
+        .filter(function (k) {
+          return k !== "none";
+        })
+        .sort();
       var first = f.salesFrom || yms[0];
       var last = f.salesTo || yms[yms.length - 1];
       var list = [];
       if (first && last) for (var ym = first; ym <= last && list.length < 36; ym = AppAgg.ymAdd(ym, 1)) list.push(map[ym] || { ym: ym, all: 0, count: 0 });
-      if (map.none) list.push(map.none); // 売上日が空欄の商談
-      var inverted = cfg().history.groups
-        .filter(function (g) {
-          return g.invert;
-        })
-        .map(function (g) {
-          return g.key;
-        });
+      if (map.none) list.push(map.none);
       list.forEach(function (m) {
         keys.forEach(function (k) {
           m[k] = m[k] || 0;
-          // 失注など（invert）は、売上への影響として符号を逆にする
-          if (inverted.indexOf(k) >= 0 && !m["_inv_" + k]) {
-            m[k] = -m[k];
-            m["_inv_" + k] = true;
-          }
         });
       });
       return list;
     })();
 
-    // 明細：区分を選んでいれば、その区分に入った・出た・中で変わった商談だけ
+    // 明細：区分を選んでいれば、その区分に関わる商談だけ
     var selected = scoped.filter(function (s) {
-      return !f.group || s.gStart === f.group || s.gEnd === f.group;
+      return !f.group || involved(s, f.group);
     });
     var rows = [];
     selected.forEach(function (s) {
+      var base = { opp: s.opp, owner: s.owner, possibility: s.opp.possibility };
+      // 新規登録の行（登録時のステージと金額）
+      if (s.isNew && (f.kind === "all" || f.kind === "created" || !f.kind)) {
+        var gi = groupOf(s.initial.stage);
+        rows.push(
+          Object.assign({}, base, {
+            id: s.opp.id + ":created",
+            at: s.opp.createdAt,
+            atText: fmtAt(s.opp.createdAt),
+            field: "created",
+            oldValue: "",
+            newValue: s.initial.stage,
+            amount: s.initial.amount,
+            editor: s.opp.createdBy || "",
+            toGroup: gi,
+            tone: gi === "won" ? "up" : "",
+            // 情報で登録され、期間の終わりにも情報のままの商談だけ「新規（情報）」に数える（上部の情報の集計と合わせる）
+            newInfo: gi === "info" && s.gEnd === "info" ? s.initial.amount : 0,
+            toWon: gi === "won" ? s.initial.amount : 0,
+            toLost: 0,
+          })
+        );
+      }
       s.changes.forEach(function (c) {
+        if (f.kind === "created") return;
         if (f.kind === "amount" && c.field !== "amount") return;
         if (f.kind === "stage" && c.field !== "stage") return;
         // ステージの変更は、区分（情報・受注・失注）が変わったものだけ出す
-        // （受注→制作進行、タネ→案件詳細入手 など同じ区分の中の変更は、売上の増減に関係ないので出さない）
         if (c.field === "stage" && groupOf(c.oldValue) === groupOf(c.newValue)) return;
-        var row = {
+        var row = Object.assign({}, base, {
           id: c.id,
           at: c.at,
           atText: fmtAt(c.at),
-          opp: s.opp,
-          owner: s.owner,
           field: c.field,
           oldValue: c.oldValue,
           newValue: c.newValue,
           editor: c.editor,
-          possibility: s.opp.possibility,
-        };
+        });
         if (c.field === "amount") {
           row.diff = c.newValue - c.oldValue;
           row.tone = row.diff > 0 ? "up" : row.diff < 0 ? "down" : "";
@@ -344,7 +418,6 @@ window.AppHistory = (function () {
           var gn = groupOf(c.newValue);
           row.fromGroup = go;
           row.toGroup = gn;
-          // 受注になった → 緑、失注などになった → 赤
           row.tone = gn === "won" && go !== "won" ? "up" : gn === "lost" && go !== "lost" ? "down" : "";
           row.toWon = gn === "won" && go !== "won" ? c.amountAt : 0;
           row.toLost = gn === "lost" && go !== "lost" ? c.amountAt : 0;
@@ -353,7 +426,7 @@ window.AppHistory = (function () {
       });
     });
 
-    // 担当者（商談所有者）ごとにまとめる：所属 → チーム → 役職 → 作成日の順。担当者の中は編集日の新しい順
+    // 担当者（商談所有者）ごと：所属 → チーム → 役職 → 作成日の順。担当者の中は日時の新しい順
     var byOwner = {};
     rows.forEach(function (r) {
       var g = byOwner[r.owner.id] || (byOwner[r.owner.id] = { owner: r.owner, rows: [] });
@@ -365,11 +438,12 @@ window.AppHistory = (function () {
           return {
             count: a.count + 1,
             diff: a.diff + (r.diff || 0),
+            newInfo: a.newInfo + (r.newInfo || 0),
             toWon: a.toWon + (r.toWon || 0),
             toLost: a.toLost + (r.toLost || 0),
           };
         },
-        { count: 0, diff: 0, toWon: 0, toLost: 0 }
+        { count: 0, diff: 0, newInfo: 0, toWon: 0, toLost: 0 }
       );
     };
     var owners = Object.keys(byOwner)
@@ -392,10 +466,6 @@ window.AppHistory = (function () {
         );
       });
 
-    // 検索条件の選択肢（変更があった担当者の所属から）
-    var people = summaries.map(function (s) {
-      return s.owner;
-    });
     return {
       from: f.from,
       to: f.to,
@@ -410,7 +480,9 @@ window.AppHistory = (function () {
           return m;
         }, {})
       ).length,
-      people: people,
+      people: summaries.map(function (s) {
+        return s.owner;
+      }),
     };
   }
 

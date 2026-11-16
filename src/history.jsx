@@ -126,7 +126,9 @@ function HistorySidebar({ draft, setDraft, people, onSearch, onClear, onClose, l
             </select>
           </label>
           <div className="sidebar-hint">担当者は商談の所有者です。選択肢には、期間中に変更があった商談の所有者が出ます。</div>
-          <div className="sidebar-hint">案件ステージの変更は、区分（情報・受注・失注）が変わったものだけを表示します。</div>
+          <div className="sidebar-hint">
+            案件ステージの変更は、区分（情報・受注・失注）が変わったものだけを表示します。情報は新規登録された商談だけを集計し、企画開発費請求は出しません。
+          </div>
         </div>
       </SidebarSection>
 
@@ -147,6 +149,7 @@ function HistorySidebar({ draft, setDraft, people, onSearch, onClear, onClose, l
 function hiValue(row, which) {
   const v = which === "old" ? row.oldValue : row.newValue;
   if (row.field === "amount") return hiYen(v);
+  if (row.field === "created" && which === "old") return <span className="muted">―（新規）</span>;
   const g = AppHistory.groupOf(v);
   const label = (AppConfig.history.groups.find((x) => x.key === g) || {}).label;
   return (
@@ -235,6 +238,7 @@ function HistoryTable({ r, isDemo }) {
         {s.count}件
       </td>
       <td className="num" colSpan={3}>
+        {s.newInfo > 0 && <span>新規（情報） {hiYen(s.newInfo)}</span>}
         {s.diff !== 0 && <span className={s.diff > 0 ? "hi-up" : "hi-down"}>金額の増減 {hiSigned(s.diff)}</span>}
         {s.toWon > 0 && <span className="hi-up">受注になった {hiYen(s.toWon)}</span>}
         {s.toLost > 0 && <span className="hi-down">失注などになった {hiYen(s.toLost)}</span>}
@@ -283,10 +287,12 @@ function HistoryTable({ r, isDemo }) {
                     )}
                   </td>
                   <td className="text">{row.opp.account}</td>
-                  <td className="text">{row.field === "amount" ? "売上金額" : "案件ステージ"}</td>
+                  <td className="text">{row.field === "amount" ? "売上金額" : row.field === "created" ? <b>新規登録</b> : "案件ステージ"}</td>
                   <td className="text muted">{hiValue(row, "old")}</td>
                   <td className={"text" + (HI_TONE[row.tone] ? " " + HI_TONE[row.tone] : "")}>{hiValue(row, "new")}</td>
-                  <td className={HI_TONE[row.tone] || ""}>{row.field === "amount" ? hiSigned(row.diff) : <span className="muted">{hiYen(row.amount)}</span>}</td>
+                  <td className={HI_TONE[row.tone] || ""}>
+                    {row.field === "amount" ? hiSigned(row.diff) : row.field === "created" ? hiYen(row.amount) : <span className="muted">{hiYen(row.amount)}</span>}
+                  </td>
                   <td>
                     {LEVEL_COLORS[row.possibility] && row.possibility !== "その他" ? (
                       <span className="level" style={{ background: LEVEL_COLORS[row.possibility] }}>
@@ -341,7 +347,7 @@ function hiExportExcel(r, f, kindLabel, groupLabel) {
     ws.getCell(row, 6).value = s.count + "件";
     ws.getCell(row, 9).value = s.diff;
     ws.getCell(row, 9).numFmt = '+#,##0;"▲"#,##0;"±0"';
-    ws.getCell(row, 10).value = "受注になった " + hiYen(s.toWon) + " ／ 失注などになった " + hiYen(s.toLost);
+    ws.getCell(row, 10).value = "新規（情報） " + hiYen(s.newInfo) + " ／ 受注になった " + hiYen(s.toWon) + " ／ 失注などになった " + hiYen(s.toLost);
     for (let c = 1; c <= head.length; c++) {
       ws.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
       ws.getCell(row, c).font = { bold: true };
@@ -356,11 +362,11 @@ function hiExportExcel(r, f, kindLabel, groupLabel) {
         x.atText,
         x.opp.name,
         x.opp.account,
-        x.field === "amount" ? "売上金額" : "案件ステージ",
+        x.field === "amount" ? "売上金額" : x.field === "created" ? "新規登録" : "案件ステージ",
         x.oldValue,
         x.newValue,
         x.field === "amount" ? x.diff : null,
-        x.field === "stage" ? x.amount : null,
+        x.field !== "amount" ? x.amount : null,
         x.possibility,
         (x.opp.salesDate || "").replace(/-/g, "/"),
         x.editor,
@@ -447,6 +453,7 @@ function HistoryPage({ mode, active }) {
   const dirty = applied && JSON.stringify(applied) !== JSON.stringify(draft);
   const KINDS = [
     ["all", "すべて"],
+    ["created", "新規登録"],
     ["amount", "金額の変更"],
     ["stage", "ステージの変更"],
   ];
@@ -540,7 +547,9 @@ function HistoryPage({ mode, active }) {
                     </span>
                     <span className={"hi-tile-value " + (t.delta > 0 ? "hi-up" : t.delta < 0 ? "hi-down" : "")}>{hiSigned(t.delta)}円</span>
                     <span className="hi-tile-sub">
-                      入った {t.inCount}件／出た {t.outCount}件
+                      {t.key === "info"
+                        ? "新規登録 " + t.newCount + "件（新規登録された商談だけを集計）"
+                        : "入った " + t.inCount + "件" + (t.newCount ? "（うち新規 " + t.newCount + "件）" : "") + "／出た " + t.outCount + "件"}
                     </span>
                   </button>
                 ))}
