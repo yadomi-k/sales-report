@@ -59,7 +59,7 @@ python3 -m http.server 8790
 - **検索・絞り込み**（CaseShelfと同じサイドバー。PCは左側に表示して開閉、スマートフォンは左から開く）：
   期間（売上日の月）、本部・部・課・チーム・担当者、受注確度、案件ステージ、コンペ区分、表示単位・並び順・集計列
 - **担当者別**：本部・部・課・チームで絞り込んで検索すると、その中の担当者の数字（目標・受注・積上・受注達成率）をチームごとに役職の順で表示（Excelにも「担当者別」シート）
-- **変更履歴（週次）**（Sales →「変更履歴（週次）」）：期間中（初期値は直近1週間）の商談の「売上金額」「案件ステージ」の変更を、
+- **Weekly Business Review**（Sales →「Weekly Business Review」）：期間中（初期値は直近1週間）の商談の「売上金額」「案件ステージ」の変更を、
   担当者（商談所有者）ごとに一覧。上部に情報・受注・失注ごとの増減（増えたら緑、減ったら赤）、押すとその区分の商談だけに絞り込み。
   金額／ステージの切り替え、担当者ごとの小計と合計、Excel出力。Salesforceの項目履歴が必要（[docs/history-setup.md](docs/history-setup.md)）
 - **比較**（Salesタブの「比較」）：「1か月前（先月比）」「前年同期（確定値）」「1年前時点（昨対比）」を選ぶと、表の各確度に比較時点の金額と増減の行が入り、グラフに点線で重なる。
@@ -88,7 +88,7 @@ python3 -m http.server 8790
 | `src/app.jsx` | Salesタブの画面（ログイン画面を含む） |
 | `src/creativedata.js` | Creativeタブのデータ（プロジェクト管理の読み取り・集計・デモデータ） |
 | `src/creative.jsx` | Creativeタブの画面（ダッシュボード・表・明細・Excel出力） |
-| `src/history.js` / `src/history.jsx` | Sales「変更履歴（週次）」のデータ・画面 |
+| `src/history.js` / `src/history.jsx` | Sales「Weekly Business Review」のデータ・画面 |
 | `src/shell.jsx` | アプリ全体（上部バー・Sales／Creativeタブの切り替え） |
 | `assets/` | VISORAのロゴ・アイコン |
 | `styles.css` | 見た目 |

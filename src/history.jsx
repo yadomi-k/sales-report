@@ -1,4 +1,4 @@
-// VISORA：Salesタブの「変更履歴（週次）」— 商談の売上金額・案件ステージの変更を、担当者（商談所有者）ごとに見る
+// VISORA：Salesタブの「Weekly Business Review」— 商談の売上金額・案件ステージの変更を、担当者（商談所有者）ごとに見る
 // ※ useState などは src/app.jsx で宣言したものを使う
 
 const HI_TONE = { up: "hi-up", down: "hi-down" };

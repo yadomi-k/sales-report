@@ -51,7 +51,7 @@ window.AppConfig = {
     salesAmount: "OrderEstimate__c",
   },
 
-  // 変更履歴（週次）：商談の項目履歴（OpportunityFieldHistory）から「売上金額」「案件ステージ」の変更を読む
+  // Weekly Business Review：商談の項目履歴（OpportunityFieldHistory）から「売上金額」「案件ステージ」の変更を読む
   // Salesforceで、商談の この2項目の「項目履歴管理」をオンにしておく必要がある（docs/history-setup.md）
   history: {
     days: 7, // 初期表示の期間（今日から何日前まで）

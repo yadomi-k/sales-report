@@ -5,10 +5,10 @@ const TABS = [
   { key: "creative", label: "Creative" },
 ];
 
-// Salesタブの中の画面：売上レポート／変更履歴（週次）
+// Salesタブの中の画面：SalesReport／Weekly Business Review
 const SALES_VIEWS = [
-  { key: "report", label: "売上レポート", hash: "sales" },
-  { key: "history", label: "変更履歴（週次）", hash: "sales-history" },
+  { key: "report", label: "SalesReport", hash: "sales" },
+  { key: "history", label: "Weekly Business Review", hash: "sales-history" },
 ];
 
 function readHash() {
