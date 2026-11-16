@@ -62,7 +62,8 @@ window.AppHistory = (function () {
       "Opportunity." + amt,
       "Opportunity." + o.salesDate,
     ];
-    if (o.confidence) fields.push("Opportunity." + o.confidence);
+    var poss = cfg().history.possibility || o.confidence; // 受注確度の項目
+    if (poss) fields.push("Opportunity." + poss);
     var rts = (o.actualRecordTypeIds || []).map(AppSSO.soqlString);
     var soql =
       "SELECT " + fields.join(", ") + " FROM OpportunityFieldHistory" +
@@ -83,7 +84,7 @@ window.AppHistory = (function () {
             ownerId: op.OwnerId,
             stage: op.StageName || "",
             amount: num(op[amt]),
-            possibility: (o.confidence && op[o.confidence]) || "",
+            possibility: (poss && op[poss]) || "",
             salesDate: String(op[o.salesDate] || "").slice(0, 10),
           };
         var isStage = h.Field === "StageName";
@@ -128,7 +129,8 @@ window.AppHistory = (function () {
             ownerId: sp.ownerId,
             stage: sp.stage,
             amount: sp.oppAmount,
-            possibility: sp.level === "その他" ? "" : sp.level,
+            // デモ：受注確度の項目の値（受注済みの商談も、受注前の確度が残っている想定）
+            possibility: sp.level === "受注" ? "高" : sp.level === "その他" ? "低" : sp.level,
             salesDate: sp.salesDate,
             _pct: sp.pct,
           };

@@ -57,6 +57,8 @@ window.AppConfig = {
   // Salesforceで、商談の この2項目の「項目履歴管理」をオンにしておく必要がある（docs/history-setup.md）
   history: {
     days: 7, // 初期表示の期間（今日から何日前まで）
+    // 一覧の「受注確度」に出す項目（検索用受注確度の数式ではなく、受注確度の項目そのもの）
+    possibility: "Possibility__c",
     // 上部の集計の区分（ステージ）
     groups: [
       { key: "info", label: "情報", stages: ["タネ", "案件詳細入手", "着手承認済み", "見積提出済み"] },
