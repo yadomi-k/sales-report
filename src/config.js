@@ -47,8 +47,8 @@ window.AppConfig = {
     competition: "Competition_classification__c", // コンペ区分（相見積り・デザインコンペ・企画コンペ）
     tags: "", // タグ（未確認のため未使用）
     salesType: "", // 営業種別（未確認のため未使用）
-    // 商談の「売上金額」（変更履歴で使う）※API参照名は要確認
-    salesAmount: "SalesAmount__c",
+    // 商談の「売上金額」（変更履歴で使う）
+    salesAmount: "OrderEstimate__c",
   },
 
   // 変更履歴（週次）：商談の項目履歴（OpportunityFieldHistory）から「売上金額」「案件ステージ」の変更を読む

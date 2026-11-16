@@ -144,7 +144,7 @@ VISORA     比較する日（例：1か月前）以前で、一番新しい写�
    | `{!varSnap.SplitProfit__c}` | 次の値と等しい | `{!分割ごと.SplitProfit__c}` |
    | `{!varSnap.SplitPercentage__c}` | 次の値と等しい | `{!分割ごと.SplitPercentage}` |
    | `{!varSnap.Competition__c}` | 次の値と等しい | `{!$Record.Competition_classification__c}` |
-   | `{!varSnap.SalesAmount__c}` | 次の値と等しい | `{!$Record.（商談の売上金額の項目）}` ※API参照名を確認 |
+   | `{!varSnap.SalesAmount__c}` | 次の値と等しい | `{!$Record.OrderEstimate__c}`（売上金額） |
    | `{!varSnap.FinalProfit__c}` | 次の値と等しい | `{!$Record.（最終利益額の項目）}` ※API参照名を確認 |
    | `{!colSnaps}` | **追加** | `{!varSnap}` |
 
