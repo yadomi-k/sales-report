@@ -165,7 +165,7 @@ function writePref(key, v) {
   } catch (e) {}
 }
 
-const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-org": true, "cr-display": true, "hi-period": true, "hi-org": true };
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-org": true, "cr-display": true, "hi-period": true, "hi-sales": true, "hi-org": true };
 
 function SidebarSection({ id, title, active, children }) {
   const [open, setOpen] = useState(() => {

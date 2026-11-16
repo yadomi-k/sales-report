@@ -7,7 +7,7 @@ const hiSigned = (v) => (v > 0 ? "+" : v < 0 ? "▲" : "±") + hiYen(Math.abs(v 
 
 function hiDefaultFilters() {
   const r = AppHistory.defaultRange();
-  return { from: r.from, to: r.to, honbu: "", dept: "", section: "", team: "", owner: "" };
+  return { from: r.from, to: r.to, salesFrom: "", salesTo: "", honbu: "", dept: "", section: "", team: "", owner: "" };
 }
 
 function HistorySidebar({ draft, setDraft, people, onSearch, onClear, onClose, loading, dirty }) {
@@ -59,6 +59,36 @@ function HistorySidebar({ draft, setDraft, people, onSearch, onClear, onClose, l
             </button>
           ))}
         </div>
+      </SidebarSection>
+
+      <SidebarSection
+        id="hi-sales"
+        title="売上日"
+        active={draft.salesFrom || draft.salesTo ? (draft.salesFrom || "").replace("-", "/") + "〜" + (draft.salesTo || "").replace("-", "/") : ""}
+      >
+        <div className="period">
+          <span>開始</span>
+          <input id="hi-sales-from" type="month" aria-label="売上日の開始月" value={draft.salesFrom} onChange={(e) => set({ salesFrom: e.target.value })} />
+          <span>終了</span>
+          <input id="hi-sales-to" type="month" aria-label="売上日の終了月" value={draft.salesTo} onChange={(e) => set({ salesTo: e.target.value })} />
+        </div>
+        <div className="quick">
+          {(() => {
+            const y = Number(today.slice(0, 4));
+            const ym = today.slice(0, 7);
+            return [
+              { label: "今月", from: ym, to: ym },
+              { label: y + "年", from: y + "-01", to: y + "-12" },
+              { label: y + 1 + "年", from: y + 1 + "-01", to: y + 1 + "-12" },
+              { label: "指定なし", from: "", to: "" },
+            ].map((q) => (
+              <button type="button" key={q.label} className={"chip small" + (draft.salesFrom === q.from && draft.salesTo === q.to ? " on" : "")} onClick={() => set({ salesFrom: q.from, salesTo: q.to })}>
+                {q.label}
+              </button>
+            ));
+          })()}
+        </div>
+        <div className="sidebar-hint">商談の今の売上日で絞り込みます。空欄は指定なしです。</div>
       </SidebarSection>
 
       <SidebarSection
@@ -138,7 +168,7 @@ function HistoryTable({ r, isDemo }) {
         {s.toWon > 0 && <span className="hi-up">受注になった {hiYen(s.toWon)}</span>}
         {s.toLost > 0 && <span className="hi-down">失注などになった {hiYen(s.toLost)}</span>}
       </td>
-      <td colSpan={2}></td>
+      <td colSpan={3}></td>
     </>
   );
   return (
@@ -156,6 +186,7 @@ function HistoryTable({ r, isDemo }) {
               <th>変更後</th>
               <th>差額／金額</th>
               <th>受注確度</th>
+              <th>売上日</th>
               <th>編集した人</th>
             </tr>
           </thead>
@@ -185,7 +216,16 @@ function HistoryTable({ r, isDemo }) {
                   <td className="text muted">{hiValue(row, "old")}</td>
                   <td className={"text" + (HI_TONE[row.tone] ? " " + HI_TONE[row.tone] : "")}>{hiValue(row, "new")}</td>
                   <td className={HI_TONE[row.tone] || ""}>{row.field === "amount" ? hiSigned(row.diff) : <span className="muted">{hiYen(row.amount)}</span>}</td>
-                  <td>{row.possibility}</td>
+                  <td>
+                    {LEVEL_COLORS[row.possibility] && row.possibility !== "その他" ? (
+                      <span className="level" style={{ background: LEVEL_COLORS[row.possibility] }}>
+                        {row.possibility}
+                      </span>
+                    ) : (
+                      <span className="muted">{row.possibility || "―"}</span>
+                    )}
+                  </td>
+                  <td>{(row.opp.salesDate || "").replace(/-/g, "/")}</td>
                   <td className="text muted">{row.editor}</td>
                 </tr>
               )),
@@ -213,8 +253,8 @@ function hiExportExcel(r, f, kindLabel, groupLabel) {
   ws.getCell(1, 1).font = { bold: true, size: 13 };
   ws.getCell(2, 1).value =
     "上部の集計：" + r.tiles.map((t) => t.label + " " + hiSigned(t.delta)).join("　") + "　／　表示：" + kindLabel + (groupLabel ? "・" + groupLabel + "の商談" : "");
-  const head = ["担当者", "所属", "編集日", "商談名", "取引先名", "項目", "変更前", "変更後", "差額", "金額", "受注確度", "編集した人"];
-  const widths = [14, 28, 17, 34, 22, 12, 16, 16, 14, 14, 9, 14];
+  const head = ["担当者", "所属", "編集日", "商談名", "取引先名", "項目", "変更前", "変更後", "差額", "金額", "受注確度", "売上日", "編集した人"];
+  const widths = [14, 28, 17, 34, 22, 12, 16, 16, 14, 14, 9, 12, 14];
   head.forEach((h, i) => {
     const c = ws.getCell(4, 1 + i);
     c.value = h;
@@ -251,6 +291,7 @@ function hiExportExcel(r, f, kindLabel, groupLabel) {
         x.field === "amount" ? x.diff : null,
         x.field === "stage" ? x.amount : null,
         x.possibility,
+        (x.opp.salesDate || "").replace(/-/g, "/"),
         x.editor,
       ];
       vals.forEach((v, i) => {
@@ -351,6 +392,7 @@ function HistoryPage({ mode, active }) {
   const chips = [];
   if (applied) {
     chips.push(applied.from.replace(/-/g, "/") + "〜" + applied.to.replace(/-/g, "/"));
+    if (applied.salesFrom || applied.salesTo) chips.push("売上日 " + (applied.salesFrom || "").replace("-", "/") + "〜" + (applied.salesTo || "").replace("-", "/"));
     const org = [applied.dept || applied.honbu, applied.section, applied.team].filter(Boolean).join(" / ");
     if (applied.owner) chips.push((people.find((u) => u.id === applied.owner) || {}).name || "担当者");
     else if (org) chips.push(org);

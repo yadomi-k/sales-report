@@ -60,6 +60,7 @@ window.AppHistory = (function () {
       "Opportunity.OwnerId",
       "Opportunity.StageName",
       "Opportunity." + amt,
+      "Opportunity." + o.salesDate,
     ];
     if (o.confidence) fields.push("Opportunity." + o.confidence);
     var rts = (o.actualRecordTypeIds || []).map(AppSSO.soqlString);
@@ -83,6 +84,7 @@ window.AppHistory = (function () {
             stage: op.StageName || "",
             amount: num(op[amt]),
             possibility: (o.confidence && op[o.confidence]) || "",
+            salesDate: String(op[o.salesDate] || "").slice(0, 10),
           };
         var isStage = h.Field === "StageName";
         // 金額の履歴は、値が同じ（書式だけの変更）なら除く
@@ -127,6 +129,7 @@ window.AppHistory = (function () {
             stage: sp.stage,
             amount: sp.oppAmount,
             possibility: sp.level === "その他" ? "" : sp.level,
+            salesDate: sp.salesDate,
             _pct: sp.pct,
           };
       });
@@ -170,7 +173,8 @@ window.AppHistory = (function () {
 
   // ---------------------------------------------------------------
   // 集計
-  // f: { from, to（"YYYY-MM-DD"）, honbu, dept, section, team, owner, kind: "all"|"amount"|"stage", group: ""|"info"|"won"|"lost" }
+  // f: { from, to（"YYYY-MM-DD"）, salesFrom, salesTo（売上日の月 "YYYY-MM"。空欄は指定なし）,
+  //      honbu, dept, section, team, owner, kind: "all"|"amount"|"stage", group: ""|"info"|"won"|"lost" }
   // ---------------------------------------------------------------
   function groupOf(stage) {
     var g = cfg().history.groups.filter(function (x) {
@@ -235,8 +239,15 @@ window.AppHistory = (function () {
       summaries.push({ opp: op, owner: owner, start: start, end: end, gStart: groupOf(start.stage), gEnd: groupOf(end.stage), changes: inWindow });
     });
 
+    // 売上日（月）の条件
+    var salesOk = function (op) {
+      var ym = String(op.salesDate || "").slice(0, 7);
+      if (f.salesFrom && (!ym || ym < f.salesFrom)) return false;
+      if (f.salesTo && (!ym || ym > f.salesTo)) return false;
+      return true;
+    };
     var scoped = summaries.filter(function (s) {
-      return orgOk(s.owner);
+      return orgOk(s.owner) && salesOk(s.opp);
     });
 
     // 上部の集計：区分ごとに、期間中に増えた・減った金額（終わりの時点 − 始まりの時点）
