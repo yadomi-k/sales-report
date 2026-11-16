@@ -1312,3 +1312,33 @@ table.history td.num span {
 .hi-sum-label {
   text-align: right;
 }
+
+/* 変更履歴：売上日の月ごとの増減グラフ */
+.hi-chart {
+  margin: 0.875rem 1rem 0;
+  padding: 0.75rem 0.875rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+.hi-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.hi-chart-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.hi-chart-total {
+  font-size: 0.8125rem;
+}
+.hi-chart-box {
+  position: relative;
+  height: 16rem;
+  margin-top: 0.5rem;
+}

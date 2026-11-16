@@ -263,6 +263,38 @@ window.AppHistory = (function () {
       return t;
     });
 
+    // 売上日の月ごとの増減（グラフ）：区分ごと（情報・受注・失注）と、全体（区分に関係ない売上金額の増減）
+    var monthly = (function () {
+      var keys = cfg().history.groups.map(function (g) {
+        return g.key;
+      });
+      var map = {};
+      scoped.forEach(function (s) {
+        var ym = String(s.opp.salesDate || "").slice(0, 7) || "none";
+        var m = map[ym] || (map[ym] = { ym: ym, all: 0, count: 0 });
+        keys.forEach(function (k) {
+          m[k] = (m[k] || 0) + (s.gEnd === k ? s.end.amount : 0) - (s.gStart === k ? s.start.amount : 0);
+        });
+        m.all += s.end.amount - s.start.amount;
+        m.count += 1;
+      });
+      // 月の並び：売上日の条件があればその範囲、なければ変更があった月の範囲（最大36か月）
+      var yms = Object.keys(map).filter(function (k) {
+        return k !== "none";
+      }).sort();
+      var first = f.salesFrom || yms[0];
+      var last = f.salesTo || yms[yms.length - 1];
+      var list = [];
+      if (first && last) for (var ym = first; ym <= last && list.length < 36; ym = AppAgg.ymAdd(ym, 1)) list.push(map[ym] || { ym: ym, all: 0, count: 0 });
+      if (map.none) list.push(map.none); // 売上日が空欄の商談
+      list.forEach(function (m) {
+        keys.forEach(function (k) {
+          m[k] = m[k] || 0;
+        });
+      });
+      return list;
+    })();
+
     // 明細：区分を選んでいれば、その区分に入った・出た・中で変わった商談だけ
     var selected = scoped.filter(function (s) {
       return !f.group || s.gStart === f.group || s.gEnd === f.group;
@@ -349,6 +381,7 @@ window.AppHistory = (function () {
       from: f.from,
       to: f.to,
       tiles: tiles,
+      monthly: monthly,
       owners: owners,
       total: sumOf(rows),
       rowCount: rows.length,

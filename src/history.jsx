@@ -156,6 +156,76 @@ function hiValue(row, which) {
   );
 }
 
+// 売上日の月ごとの増減の棒グラフ（増えた月は緑、減った月は赤）
+function HistoryChart({ r, series, setSeries }) {
+  const ref = useRef(null);
+  const options = AppConfig.history.groups.map((g) => [g.key, g.label]).concat([["all", "全体"]]);
+  const label = (options.find((o) => o[0] === series) || [])[1] || "";
+  useEffect(() => {
+    if (!window.Chart || !ref.current) return;
+    const months = r.monthly;
+    const data = months.map((m) => m[series] || 0);
+    const chart = new Chart(ref.current, {
+      type: "bar",
+      data: {
+        labels: months.map((m) => (m.ym === "none" ? "売上日なし" : m.ym.slice(0, 4) + "/" + Number(m.ym.slice(5)))),
+        datasets: [
+          {
+            label: label + "の増減",
+            data,
+            backgroundColor: data.map((v) => (v >= 0 ? "#2bb38a" : "#e35d5d")),
+            borderRadius: 3,
+            maxBarThickness: 56,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => label + "の増減：" + hiSigned(ctx.raw) + "円",
+              afterLabel: (ctx) => "変更があった商談：" + months[ctx.dataIndex].count + "件",
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { ticks: { callback: (v) => (v > 0 ? "+" : v < 0 ? "▲" : "") + Math.abs(v).toLocaleString("ja-JP") } },
+        },
+      },
+    });
+    return () => chart.destroy();
+  }, [r, series]);
+  const total = r.monthly.reduce((a, m) => a + (m[series] || 0), 0);
+  return (
+    <div className="hi-chart">
+      <div className="hi-chart-head">
+        <div className="hi-chart-title">
+          売上日の月ごとの増減
+          <span className={"hi-chart-total " + (total > 0 ? "hi-up" : total < 0 ? "hi-down" : "")}>合計 {hiSigned(total)}円</span>
+        </div>
+        <div className="seg" role="group" aria-label="グラフの区分">
+          {options.map(([k, l]) => (
+            <button key={k} className={series === k ? "on" : ""} aria-pressed={series === k} onClick={() => setSeries(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {r.monthly.length ? (
+        <div className="hi-chart-box">
+          <canvas ref={ref} role="img" aria-label={"売上日の月ごとの" + label + "の増減"} />
+        </div>
+      ) : (
+        <div className="cr-empty">この条件で、期間中の変更はありません。</div>
+      )}
+    </div>
+  );
+}
+
 function HistoryTable({ r, isDemo }) {
   if (!r.rowCount) return <div className="cr-empty">この条件で、期間中の変更はありません。</div>;
   const sumCells = (s) => (
@@ -328,6 +398,7 @@ function HistoryPage({ mode, active }) {
   const [error, setError] = useState("");
   const [kind, setKind] = useState("all");
   const [group, setGroup] = useState("");
+  const [series, setSeries] = useState("won"); // グラフの区分（受注・情報・失注・全体）
   const [exporting, setExporting] = useState(false);
   const [sidebarClosed, setSidebarClosed] = useState(() => !!readPref(SIDEBAR_PREF, false));
   const [panelOpen, setPanelOpen] = useState(false);
@@ -455,7 +526,11 @@ function HistoryPage({ mode, active }) {
                     type="button"
                     className={"hi-tile g-" + t.key + (group === t.key ? " on" : "")}
                     aria-pressed={group === t.key}
-                    onClick={() => setGroup(group === t.key ? "" : t.key)}
+                    onClick={() => {
+                      // 集計を押したら、明細とグラフをその区分に合わせる
+                      setGroup(group === t.key ? "" : t.key);
+                      if (group !== t.key) setSeries(t.key);
+                    }}
                     title={t.stages.join("・")}
                   >
                     <span className="hi-tile-label">{t.label}</span>
@@ -466,6 +541,7 @@ function HistoryPage({ mode, active }) {
                   </button>
                 ))}
               </div>
+              <HistoryChart r={r} series={series} setSeries={setSeries} />
               <div className="toolbar hi-toolbar">
                 <div className="seg" role="group" aria-label="表示する変更">
                   {KINDS.map(([k, l]) => (
