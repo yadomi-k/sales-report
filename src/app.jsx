@@ -29,15 +29,14 @@ function defaultFilters() {
     salesTypes: [],
     groupBy: "",
     sort: "name",
-    compare: "none", // 比較：none | month（1か月前の時点）| yearFinal（前年同期・確定値）| yearAt（1年前の時点）
   };
 }
 
 // ---------------------------------------------------------------
 // 過去との比較
 // ---------------------------------------------------------------
+// 「比較」タブで選ぶ比較の時点
 const COMPARE_OPTIONS = [
-  { key: "none", label: "比較しない" },
   { key: "month", label: "1か月前の時点（先月比）", short: "1か月前" },
   { key: "yearFinal", label: "前年同期（確定値）", short: "前年同期" },
   { key: "yearAt", label: "1年前の時点（昨対比）", short: "1年前時点" },
@@ -166,7 +165,7 @@ function writePref(key, v) {
   } catch (e) {}
 }
 
-const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, compare: true, display: true, "cr-period": true, "cr-org": true, "cr-display": true };
+const DEFAULT_OPEN = { saved: false, period: true, org: true, level: true, stage: false, compe: false, display: true, "cr-period": true, "cr-org": true, "cr-display": true };
 
 function SidebarSection({ id, title, active, children }) {
   const [open, setOpen] = useState(() => {
@@ -382,25 +381,6 @@ function SearchSidebar({ draft, setDraft, users, opts, onSearch, onClear, onClos
           <ChipChoices all={opts.salesTypes} selected={draft.salesTypes} onChange={(v) => set({ salesTypes: v })} />
         </SidebarSection>
       )}
-
-      <SidebarSection id="compare" title="過去との比較" active={draft.compare !== "none" ? (COMPARE_OPTIONS.find((o) => o.key === draft.compare) || {}).short : ""}>
-        <div className="stack">
-          <label className="mini-field">
-            <span>比較する時点</span>
-            <select id="f-compare" value={draft.compare} onChange={(e) => set({ compare: e.target.value })}>
-              {COMPARE_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="sidebar-hint">
-            表の各確度に「比較時点の金額」と「増減」の行が加わり、グラフに比較時点の数字が点線で重なります。
-            「1か月前」「1年前」は、Salesforceで毎日取っている写しと比べます。「前年同期」は前年の同じ月の今の数字と比べます。
-          </div>
-        </div>
-      </SidebarSection>
 
       <SidebarSection id="display" title="表示" active={draft.groupBy ? groupLabels[draft.groupBy] : ""}>
         <div className="stack">
@@ -900,7 +880,7 @@ function conditionSummary(f, aff) {
   if (f.owner) out.push(["担当者", aff(f.owner).name]);
   out.push(["受注確度", f.levels.join("、")]);
   if (f.stages.length) out.push(["案件ステージ", f.stages.join("、")]);
-  if (f.compare && f.compare !== "none") out.push(["比較", (COMPARE_OPTIONS.find((o) => o.key === f.compare) || {}).label || ""]);
+  if (f.compare) out.push(["比較", (COMPARE_OPTIONS.find((o) => o.key === f.compare) || {}).label || ""]);
   if (f.competitions.length) out.push(["コンペ区分", f.competitions.join("、")]);
   if (f.tags.length) out.push(["タグ", f.tags.join("、")]);
   if (f.salesTypes.length) out.push(["営業種別", f.salesTypes.join("、")]);
@@ -930,6 +910,11 @@ function SalesPage({ mode, active }) {
   const [saved, setSaved] = useState(readSaved);
   const [exporting, setExporting] = useState(false);
   const [cmp, setCmp] = useState(null); // 比較の数字 { key, label, note, data, shift, snapshotDate }
+  const [cmpLoading, setCmpLoading] = useState(false);
+  const [compareMode, setCompareMode] = useState(() => {
+    const v = readPref("salesreport_compare_mode", "month");
+    return COMPARE_OPTIONS.some((o) => o.key === v) ? v : "month";
+  });
   const [sidebarClosed, setSidebarClosed] = useState(() => !!readPref(SIDEBAR_PREF, false));
   const [panelOpen, setPanelOpen] = useState(false);
   useEffect(() => {
@@ -949,34 +934,36 @@ function SalesPage({ mode, active }) {
       }
       setError("");
       const key = f.fromYM + "|" + f.toYM;
-      const cmpKey = key + "|" + f.compare;
-      const haveMain = key === loadedKey && data;
-      const haveCmp = f.compare === "none" || (cmp && cmp.key === cmpKey);
-      if (haveMain && haveCmp) {
+      if (key === loadedKey && data) {
         setApplied(f);
         return;
       }
       setLoading(true);
       setProgress("");
-      const loader = haveMain
-        ? Promise.resolve(data)
-        : isDemo
-        ? AppDemo.load(f.fromYM, f.toYM)
-        : AppSF.load(f.fromYM, f.toYM, (n) => setProgress(n.toLocaleString() + "件 読み込み済み"));
+      const loader = isDemo ? AppDemo.load(f.fromYM, f.toYM) : AppSF.load(f.fromYM, f.toYM, (n) => setProgress(n.toLocaleString() + "件 読み込み済み"));
       loader
         .then((d) => {
           setData(d);
           setLoadedKey(key);
-          if (haveCmp) return;
-          // 比較の数字（1か月前・前年など）を読み込む
-          return loadCompare(f, mode, d).then((c) => setCmp(c ? Object.assign({ key: cmpKey }, c) : null));
+          setApplied(f);
         })
-        .then(() => setApplied(f))
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     },
-    [draft, loadedKey, data, isDemo, cmp]
+    [draft, loadedKey, data, isDemo]
   );
+
+  // 「比較」タブを開いている間、比較の数字（1か月前・前年など）を読み込む
+  const cmpKeyNow = applied ? applied.fromYM + "|" + applied.toYM + "|" + compareMode : "";
+  useEffect(() => {
+    if (view !== "compare" || !data || !applied || loadedKey !== applied.fromYM + "|" + applied.toYM) return;
+    if (cmp && cmp.key === cmpKeyNow) return;
+    setCmpLoading(true);
+    loadCompare(Object.assign({}, applied, { compare: compareMode }), mode, data)
+      .then((c) => setCmp(c ? Object.assign({ key: cmpKeyNow }, c) : null))
+      .catch((e) => setError(e.message))
+      .finally(() => setCmpLoading(false));
+  }, [view, cmpKeyNow, data, loadedKey]);
 
   useEffect(() => {
     search(draft);
@@ -985,15 +972,15 @@ function SalesPage({ mode, active }) {
   const result = useMemo(() => {
     if (!data || !applied) return null;
     const r = AppAgg.build(data, applied, applied);
-    // 比較：同じ条件で、比較する時点（または前年の同じ月）の数字を集計して横に並べる
-    if (applied.compare !== "none" && cmp && cmp.data) {
+    // 比較タブ：同じ条件で、比較する時点（または前年の同じ月）の数字を集計して横に並べる
+    if (view === "compare" && cmp && cmp.key === cmpKeyNow && cmp.data) {
       const v = Object.assign({}, applied, { fromYM: AppAgg.ymAdd(applied.fromYM, cmp.shift), toYM: AppAgg.ymAdd(applied.toYM, cmp.shift) });
       const c = AppAgg.build(cmp.data, applied, v);
       r.compare = { label: cmp.label, total: c.total.cells, groups: {} };
       c.groups.forEach((g) => (r.compare.groups[g.key] = g.cells));
     }
     return r;
-  }, [data, applied, cmp]);
+  }, [data, applied, cmp, view, cmpKeyNow]);
   const opts = useMemo(() => (data ? AppAgg.options(data) : { stages: [], competitions: [], tags: [], salesTypes: [] }), [data]);
   const users = useMemo(() => {
     if (!data) return [];
@@ -1020,7 +1007,8 @@ function SalesPage({ mode, active }) {
       setError("この確認用ページではファイルをダウンロードできません。Excel・CSVの出力は、社内に置いた本番の画面で使えます。");
       return;
     }
-    const cond = conditionSummary(applied, result.aff);
+    // 比較タブで出力したときは、比較の時点も検索条件に書く（比較の行も出力される）
+    const cond = conditionSummary(view === "compare" ? Object.assign({}, applied, { compare: compareMode }) : applied, result.aff);
     if (kind === "csv") return AppExport.csv(result, applied, applied.levels, cond);
     setExporting(true);
     AppExport.excel(result, applied, applied.levels, cond)
@@ -1052,7 +1040,7 @@ function SalesPage({ mode, active }) {
     if (applied.levels.length < LEVELS.length) chips.push("確度：" + applied.levels.join("・"));
     if (applied.stages.length) chips.push("ステージ：" + applied.stages.length + "件");
     if (applied.competitions.length) chips.push(applied.competitions.join("・"));
-    if (applied.compare !== "none") chips.push("比較：" + ((COMPARE_OPTIONS.find((o) => o.key === applied.compare) || {}).short || ""));
+    if (view === "compare") chips.push("比較：" + ((COMPARE_OPTIONS.find((o) => o.key === compareMode) || {}).short || ""));
     if (applied.groupBy) chips.push({ honbu: "本部ごと", dept: "部ごと", section: "課ごと", team: "チームごと", owner: "担当者ごと" }[applied.groupBy]);
   }
 
@@ -1118,7 +1106,8 @@ function SalesPage({ mode, active }) {
             </div>
           )}
           {data && data.targetCheck && !loading && <TargetCheck check={data.targetCheck} />}
-          {applied && applied.compare !== "none" && cmp && !loading && (
+          {view === "compare" && cmpLoading && <div className="alert info">比較の数字を読み込んでいます…</div>}
+          {view === "compare" && cmp && cmp.key === cmpKeyNow && !cmpLoading && !loading && (
             <div className={"alert " + (cmp.data ? "info" : "warn")}>
               比較（{cmp.label}）：{cmp.note}
             </div>
@@ -1139,6 +1128,7 @@ function SalesPage({ mode, active }) {
                       ["both", "表とグラフ"],
                       ["table", "表"],
                       ["chart", "グラフ"],
+                      ["compare", "比較"],
                       ["detail", "明細"],
                     ].map(([k, l]) => (
                       <button key={k} className={view === k ? "on" : ""} aria-pressed={view === k} onClick={() => changeView(k)}>
@@ -1146,7 +1136,25 @@ function SalesPage({ mode, active }) {
                       </button>
                     ))}
                   </div>
-                  {(view === "both" || view === "chart") && (
+                  {view === "compare" && (
+                    <div className="seg" role="group" aria-label="比較する時点">
+                      {COMPARE_OPTIONS.map((o) => (
+                        <button
+                          key={o.key}
+                          className={compareMode === o.key ? "on" : ""}
+                          aria-pressed={compareMode === o.key}
+                          title={o.label}
+                          onClick={() => {
+                            setCompareMode(o.key);
+                            writePref("salesreport_compare_mode", o.key);
+                          }}
+                        >
+                          {o.short}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {(view === "both" || view === "chart" || view === "compare") && (
                     <div className="seg" role="group" aria-label="グラフの値">
                       {[
                         ["amount", "売上"],
@@ -1168,8 +1176,9 @@ function SalesPage({ mode, active }) {
                 </div>
               </div>
               {(view === "both" || view === "chart") && <ReportChart result={result} levels={applied.levels} metric={metric} />}
-              {(view === "both" || view === "table") && (
+              {view === "compare" && (
                 <>
+                  {result.compare && <ReportChart result={result} levels={applied.levels} metric={metric} />}
                   <ReportTable
                     title={result.groups.length ? result.total.label : ""}
                     cells={result.total.cells}
@@ -1188,6 +1197,14 @@ function SalesPage({ mode, active }) {
                       cmp={result.compare && result.compare.groups[g.key]}
                       cmpLabel={result.compare && result.compare.label}
                     />
+                  ))}
+                </>
+              )}
+              {(view === "both" || view === "table") && (
+                <>
+                  <ReportTable title={result.groups.length ? result.total.label : ""} cells={result.total.cells} columns={result.columns} levels={applied.levels} />
+                  {result.groups.map((g) => (
+                    <ReportTable key={g.key} title={g.label} cells={g.cells} columns={result.columns} levels={applied.levels} />
                   ))}
                   {result.peopleTeams ? (
                     result.peopleTeams.length > 0 && <SalesPeopleTable teams={result.peopleTeams} columns={result.columns} levels={applied.levels} />
