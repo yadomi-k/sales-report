@@ -318,6 +318,9 @@ window.AppHistory = (function () {
       s.changes.forEach(function (c) {
         if (f.kind === "amount" && c.field !== "amount") return;
         if (f.kind === "stage" && c.field !== "stage") return;
+        // ステージの変更は、区分（情報・受注・失注）が変わったものだけ出す
+        // （受注→制作進行、タネ→案件詳細入手 など同じ区分の中の変更は、売上の増減に関係ないので出さない）
+        if (c.field === "stage" && groupOf(c.oldValue) === groupOf(c.newValue)) return;
         var row = {
           id: c.id,
           at: c.at,
@@ -399,7 +402,12 @@ window.AppHistory = (function () {
       owners: owners,
       total: sumOf(rows),
       rowCount: rows.length,
-      oppCount: selected.length,
+      oppCount: Object.keys(
+        rows.reduce(function (m, r) {
+          m[r.opp.id] = 1;
+          return m;
+        }, {})
+      ).length,
       people: people,
     };
   }

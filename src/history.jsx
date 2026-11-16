@@ -126,6 +126,7 @@ function HistorySidebar({ draft, setDraft, people, onSearch, onClear, onClose, l
             </select>
           </label>
           <div className="sidebar-hint">担当者は商談の所有者です。選択肢には、期間中に変更があった商談の所有者が出ます。</div>
+          <div className="sidebar-hint">案件ステージの変更は、区分（情報・受注・失注）が変わったものだけを表示します。</div>
         </div>
       </SidebarSection>
 
